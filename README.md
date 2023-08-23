@@ -1,9 +1,9 @@
 # [**CliStyler**](https://CliStyler.com) ( /!\ ver α /!\ )
  Module for configuring and customizing their command-line environments
 
-[![CI](https://github.com/alainQtec/PsImport/actions/workflows/CI.yaml/badge.svg)](https://github.com/alainQtec/PsImport/actions/workflows/CI.yaml)
-[![Upload artifact from Ubuntu](https://github.com/alainQtec/PsImport/actions/workflows/Upload_Artifact.yaml/badge.svg)](https://github.com/alainQtec/PsImport/actions/workflows/Upload_Artifact.yaml)
-[![Publish to PowerShell Gallery](https://github.com/alainQtec/PsImport/actions/workflows/Publish.yaml/badge.svg)](https://github.com/alainQtec/PsImport/actions/workflows/Publish.yaml)
+[![CI](https://github.com/alainQtec/CliStyler/actions/workflows/CI.yaml/badge.svg)](https://github.com/alainQtec/CliStyler/actions/workflows/CI.yaml)
+[![Upload artifact from Ubuntu](https://github.com/alainQtec/CliStyler/actions/workflows/Upload_Artifact.yaml/badge.svg)](https://github.com/alainQtec/CliStyler/actions/workflows/Upload_Artifact.yaml)
+[![Publish to PowerShell Gallery](https://github.com/alainQtec/CliStyler/actions/workflows/Publish.yaml/badge.svg)](https://github.com/alainQtec/CliStyler/actions/workflows/Publish.yaml)
 
 ![CliStyler Logo](images/icon.png)  <!-- need help creating new icon, this icon sucks!!! -->
 
