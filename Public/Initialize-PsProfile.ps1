@@ -11,7 +11,6 @@ function Initialize-PsProfile {
     .SYNOPSIS
         Initialize or Reload $PROFILE and the core functions necessary for displaying your custom prompt.
     .DESCRIPTION
-        This is an automatically Genrated function from [dotfiles](https://github.com/alainQtec/CliStyler/) build scripts.
         As you might guess it is used to Load/reload PowerShell $Profile
         Its usefull when you want to reload powershell session after making changes to your PSProfile.
         Instead of re-opening the terminal window, you just Run:
