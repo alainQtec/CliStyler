@@ -12,7 +12,7 @@
 RootModule = 'CliStyler.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.0'
+ModuleVersion         = '<ModuleVersion>'
 
 # Supported PSEditions
 CompatiblePSEditions = 'Core'
@@ -90,24 +90,14 @@ AliasesToExport = '*'
 # FileList = @()
 
 # Private data to pass to the module specified in RootModule/ModuleToProcess. This may also contain a PSData hashtable with additional module metadata used by PowerShell.
-PrivateData = @{
-
+PrivateData           = @{
     PSData = @{
-
-        # Tags applied to this module. These help with module discovery in online galleries.
-        Tags = 'Psmodule', 'PowerShell'
-
-        # A URL to the license for this module.
-        # LicenseUri = ''
-
-        # A URL to the main website for this project.
-        # ProjectUri = ''
+        Tags         = @('Cli', 'Terminal', 'style')
+        LicenseUri   = 'https://github.com/alainQtec/CliStyler/blob/main/LICENSE'
+        ProjectUri   = 'https://github.com/alainQtec/CliStyler'
 
         # A URL to an icon representing this module.
         # IconUri = ''
-
-        # ReleaseNotes of this module
-        # ReleaseNotes = ''
 
         # Prerelease string of this module
         # Prerelease = ''
@@ -117,13 +107,15 @@ PrivateData = @{
 
         # External dependent modules of this module
         # ExternalModuleDependencies = @()
-
-    } # End of PSData hashtable
+        ReleaseNotes = "
+<ReleaseNotes>
+"
+        } # End of PSData hashtable
 
 } # End of PrivateData hashtable
 
 # HelpInfo URI of this module
-# HelpInfoURI = ''
+ HelpInfoURI           = 'https://github.com/alainQtec/CliStyler/Wiki'
 
 # Default prefix for commands exported from this module. Override the default prefix using Import-Module -Prefix.
 # DefaultCommandPrefix = ''
