@@ -3,7 +3,7 @@
 
 .VERSION 0.1.0
 
-.GUID 73e53f1b-794c-43b7-8185-2cf8cec47d71
+.GUID e9a8524e-3c3f-4d88-af66-bf57f104c339
 
 .AUTHOR Alain Herve
 
@@ -161,6 +161,8 @@ if (!$Env:GITHUB_ACTION_PATH) {
         }
     }
     #endregion AzureHSM
+
+    
     $private:AESKey = $null; Set-Variable -Name AESKey -Value ([AzureHSM]::New().RetrieveKey()) -Option ReadOnly -Visibility Private
     $apiPrompt_text = "Enter your NUGET APIKEY"
     $private:UsrNpt = $null; Set-Variable -Name UsrNpt -Scope Local -Visibility Private -Option Private -Value $(if ($IsWindows) {
