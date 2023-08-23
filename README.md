@@ -1,4 +1,4 @@
-# CliStyler (/!\ ver α /!\)
+# [**CliStyler**](https|://CliStyler.com) ( /!\ ver α /!\ )
  Module for configuring and customizing their command-line environments
 
 ![CliStyler Logo](link_to_logo.png)
