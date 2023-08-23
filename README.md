@@ -1,7 +1,7 @@
 # [**CliStyler**](https://CliStyler.com) ( /!\ ver α /!\ )
  Module for configuring and customizing their command-line environments
 
-![CliStyler Logo](link_to_logo.png)
+![CliStyler Logo](images/icon.png)
 
 This module is designed to empower developers by providing an intuitive and powerful toolkit for configuring and customizing their command-line environments. Whether you're a seasoned developer or just getting started, CliStyler offers a range of features to enhance your CLI experience.
 
