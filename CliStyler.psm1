@@ -579,7 +579,7 @@ class CliStyler {
                 Write-Host ''
             }
         } catch {
-            <#Do this if a terminating exception happens#>
+            < #Do this if a terminating exception happens#>
             # if ($_.Exception.WasThrownFromThrowStatement) {
             #     [System.Management.Automation.ErrorRecord]$_ | Write-Log $([CliStyler]::LogFile.FullName)
             # }
