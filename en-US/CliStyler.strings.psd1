@@ -5,7 +5,6 @@
 # Changelog`n`n
 
 * Added funtion Initialize-PsProfile used to Load/reload PowerShell $Profile
-* Added function Invoke-PathShortener
 * Added function Write-ColorOutput
 
 `n`n***`n`n# Install guide:`n`n
