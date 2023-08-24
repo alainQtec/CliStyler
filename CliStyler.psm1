@@ -608,7 +608,7 @@ if ($PrivateModules.Count -gt 0) {
 # Dot source the files
 foreach ($Import in ($Public, $Private)) {
     Try {
-        . $Import.fullname
+        . $Import.FullName
     } Catch {
         Write-Warning "Failed to import function $($Import.BaseName): $_"
         $host.UI.WriteErrorLine($_)
