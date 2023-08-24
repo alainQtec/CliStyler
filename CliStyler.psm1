@@ -20,12 +20,14 @@ class RGB {
 class CliStyler {
     static [Int32] $realLASTEXITCODE = $LASTEXITCODE;
     static [char] $swiglyChar = [char]126;
+    static [char] $DirSeparator = [System.IO.Path]::DirectorySeparatorChar;
     static [string] $nl = [Environment]::NewLine;
     # UTF8 Characters from https://www.w3schools.com/charsets/ref_utf_box.asp
     static [string] $dt = [string][char]8230;
     static [string] $b1 = [string][char]91;
     static [string] $b2 = [string][char]93;
     static [string] $Home_Indic = $swiglyChar + [IO.Path]::DirectorySeparatorChar;
+    static [PsObject] $PSVersn = (Get-Variable PSVersionTable).Value;
     static [string] $leadingChar = [char]9581 + [char]9592;
     static [string] $trailngChar = [char]9584 + [char]9588;
     static [IO.FileInfo] $LogFile;
@@ -443,13 +445,43 @@ class CliStyler {
         if (([CliStyler]::CurrExitCode) -and $([CliStyler]::IsInitialised())) {
             Write-Host ''
             try {
-                Write-RGB $([CliStyler]::Default_Term_Ascii) -ForegroundColor SlateBlue -BackgroundColor Black;
+                [CliStyler]::Write_RGB([CliStyler]::Default_Term_Ascii, 'SlateBlue')
             } catch {
                 # IncOMpatible
                 # Write-ColorOutput -ForegroundColor DarkCyan $([CliStyler]::Default_Term_Ascii)
-                Write-Host $([CliStyler]::Default_Term_Ascii) -ForegroundColor Green
+                Write-Host "$([CliStyler]::Default_Term_Ascii)" -ForegroundColor Green
             }
             Write-Host ''
+        }
+    }
+    static [void] Write_RGB([string]$Text, $ForegroundColor) {
+        [CliStyler]::Write_RGB($Text, $ForegroundColor, $true)
+    }
+    static [void] Write_RGB([string]$Text, [string]$ForegroundColor, [bool]$NoNewLine) {
+        [CliStyler]::Write_RGB($Text, $ForegroundColor, 'Black')
+    }
+    static [void] Write_RGB([string]$Text, [string]$ForegroundColor, [string]$BackgroundColor) {
+        [CliStyler]::Write_RGB($Text, $ForegroundColor, $BackgroundColor, $true)
+    }
+    static [void] Write_RGB([string]$Text, [string]$ForegroundColor, [string]$BackgroundColor, [bool]$NoNewLine) {
+        $escape = [char]27 + '['; $24bitcolors = [CliStyler]::colors
+        $resetAttributes = "$($escape)0m";
+        $psBuild = [CliStyler]::PSVersn.PSVersion.Build
+        [double]$VersionNum = $([CliStyler]::PSVersn.PSVersion.ToString().split('.')[0..1] -join '.')
+        if ([bool]$($VersionNum -le [double]5.1)) {
+            [rgb]$Background = [rgb]::new(1, 36, 86);
+            [rgb]$Foreground = [rgb]::new(255, 255, 255);
+            $f = "$($escape)38;2;$($Foreground.Red);$($Foreground.Green);$($Foreground.Blue)m"
+            $b = "$($escape)48;2;$($Background.Red);$($Background.Green);$($Background.Blue)m"
+            $f = "$($escape)38;2;$($24bitcolors.$ForegroundColor.Red);$($24bitcolors.$ForegroundColor.Green);$($24bitcolors.$ForegroundColor.Blue)m"
+            $b = "$($escape)48;2;$($24bitcolors.$BackgroundColor.Red);$($24bitcolors.$BackgroundColor.Green);$($24bitcolors.$BackgroundColor.Blue)m"
+            if ([bool](Get-Command  Write-Info -ErrorAction SilentlyContinue)) {
+                Write-Info ($f + $b + $Text + $resetAttributes) -NoNewline:$NoNewLine
+            } else {
+                Write-Host ($f + $b + $Text + $resetAttributes) -NoNewline:$NoNewLine
+            }
+        } else {
+            throw [System.Management.Automation.RuntimeException]::new("Writing to the console in 24-bit colors can only work with PowerShell versions lower than '5.1 build 14931' or above.`nBut yours is '$VersionNum' build '$psBuild'")
         }
     }
     static hidden [void] Create_Prompt_Function() {
@@ -465,6 +497,50 @@ class CliStyler {
             Set-Variable -Name IsPromptInitialised -Value $([CliStyler]::CurrExitCode) -Visibility Public -Scope Global;
         }
     }
+    static hidden [string] Get_Short_Path() {
+        $curr_location = $(Get-Variable ExecutionContext).Value.SessionState.Path.CurrentLocation.Path
+        return [clistyler]::get_short_Path($curr_location, 2, 2, [CliStyler]::DirSeparator, [char]8230)
+    }
+    static hidden [string] Get_Short_Path([string]$Path) {
+        return [clistyler]::get_short_Path($Path, 2, 2, [CliStyler]::DirSeparator, [char]8230)
+    }
+    static hidden [string] Get_Short_Path([string]$Path, [char]$TruncateChar) {
+        
+        return [clistyler]::get_short_Path($Path, 2, 2, [CliStyler]::DirSeparator, $TruncateChar)
+    }
+    static hidden [string] Get_Short_Path(
+        [string]$Path,
+        [int]$KeepBefore,# Number of parts to keep before truncating. Default value is 2.
+        [int]$KeepAfter, # Number of parts to keep after truncating. Default value is 1.
+        [Char]$Separator,# Path separator character.
+        [char]$TruncateChar
+    ) {
+        $Path = (Resolve-Path -Path $Path).Path;
+        $Path = $Path.Replace(([System.IO.Path]::DirectorySeparatorChar), [CliStyler]::DirSeparator)
+        [ValidateRange(1, [int32]::MaxValue)][int]$KeepAfter = $KeepAfter
+        $Separator = $Separator.ToString(); $TruncateChar = $TruncateChar.ToString()
+        $splitPath = $Path.Split($Separator, [System.StringSplitOptions]::RemoveEmptyEntries)
+        if ($splitPath.Count -gt ($KeepBefore + $KeepAfter)) {
+            $outPath = [string]::Empty
+            for ($i = 0; $i -lt $KeepBefore; $i++) {
+                $outPath += $splitPath[$i] + $Separator
+            }
+            $outPath += "$($TruncateChar)$($Separator)"
+            for ($i = ($splitPath.Count - $KeepAfter); $i -lt $splitPath.Count; $i++) {
+                if ($i -eq ($splitPath.Count - 1)) {
+                    $outPath += $splitPath[$i]
+                } else {
+                    $outPath += $splitPath[$i] + $Separator
+                }
+            }
+        } else {
+            $outPath = $splitPath -join $Separator
+            if ($splitPath.Count -eq 1) {
+                $outPath += $Separator
+            }
+        }
+        return $outPath
+    }
     static hidden [void] Write_Prompt() {
         if (![CliStyler]::IsInitialised()) {
             Write-Verbose "[CliStyler] Initializing, Please wait ..."
@@ -477,7 +553,7 @@ class CliStyler {
             }
             # Grab th current loaction
             $location = "$((Get-Variable ExecutionContext).Value.SessionState.Path.CurrentLocation.Path)";
-            $shortLoc = Invoke-PathShortener $location -TruncateChar $([CliStyler]::dt);
+            $shortLoc = [CliStyler]::Get_Short_Path($location, [CliStyler]::dt)
             $IsGitRepo = if ([bool]$(try { Test-Path .git -ErrorAction silentlyContinue }catch { $false })) { $true }else { $false }
             $(Get-Variable Host).Value.UI.Write(([CliStyler]::leadingChar))
             Write-Host -NoNewline $([CliStyler]::b1);
@@ -490,7 +566,7 @@ class CliStyler {
             } elseif ($location.Contains("$env:UserProfile")) {
                 $location = $($location.replace("$env:UserProfile", "$([CliStyler]::swiglyChar)"));
                 if ($location.Length -gt 25) {
-                    $location = $(Invoke-PathShortener $location -TruncateChar $([CliStyler]::dt))
+                    $location = [CliStyler]::Get_Short_Path($location, [CliStyler]::dt)
                 }
                 Write-Host $location -NoNewline -ForegroundColor DarkCyan
             } else {
