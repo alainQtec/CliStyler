@@ -8,24 +8,14 @@
 
 @{
     # Script module or binary module file associated with this manifest.
-    RootModule = 'CliStyler.psm1'
-    # Version number of this module.
+    RootModule            = 'CliStyler.psm1'
     ModuleVersion         = '<ModuleVersion>'
-        # ID used to uniquely identify this module
-    GUID = 'c9de42b3-1536-429d-8aef-3e861e9b9eb0'
-
-    # Author of this module
-    Author = 'alain'
-
-    # Company or vendor of this module
-    CompanyName = 'alainQtec'
-
-    # Copyright statement for this module
+    GUID                  = 'c9de42b3-1536-429d-8aef-3e861e9b9eb0'
+    Author                = 'Alain Herve'
+    CompanyName           = 'alainQtec'
     Copyright             = "Alain Herve (c) <Year>. All rights reserved."
-
     # Description of the functionality provided by this module
-    Description = 'A Module for configuring and customizing their command-line environments'
-
+    Description           = 'A Module for configuring and customizing their command-line environments'
     PowerShellVersion     = '3.0'
     # Minimum version of the Windows PowerShell host required by this module
     # PowerShellHostVersion = ''
@@ -51,14 +41,12 @@
     # ModuleList = @()
     # List of all files packaged with this module
     # FileList = @()
-
 # Private data to pass to the module specified in RootModule/ModuleToProcess. This may also contain a PSData hashtable with additional module metadata used by PowerShell.
-PrivateData           = @{
+PrivateData               = @{
     PSData = @{
-        Tags         = @('Cli', 'Terminal', 'style')
-        LicenseUri   = 'https://github.com/alainQtec/CliStyler/blob/main/LICENSE'
-        ProjectUri   = 'https://github.com/alainQtec/CliStyler'
-
+        Tags              = @('Cli', 'Terminal', 'style')
+        LicenseUri        = 'https://github.com/alainQtec/CliStyler/blob/main/LICENSE'
+        ProjectUri        = 'https://github.com/alainQtec/CliStyler'
         # A URL to an icon representing this module.
         # IconUri = ''
 

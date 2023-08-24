@@ -45,7 +45,11 @@ begin {
     if ([string]::IsNullOrWhiteSpace($version)) {
         $version = [version[]][IO.DirectoryInfo]::New([IO.Path]::Combine($PSScriptRoot, 'BuildOutput', 'CliStyler')).GetDirectories().Name | Select-Object -Last 1
     }
-    $BuildOutDir = [IO.DirectoryInfo]::New((Resolve-Path ([IO.Path]::Combine($PSScriptRoot, 'BuildOutput', 'CliStyler', $version)) -ErrorAction Stop))
+    $BuildOutDir = Resolve-Path $([IO.Path]::Combine($PSScriptRoot, 'BuildOutput', 'CliStyler', $version)) -ErrorAction Ignore | Get-Item -ErrorAction Ignore
+    if (!$BuildOutDir.Exists) {
+       Write-Warning "NO_Build_OutPut | Please make sure to Build the module successfully before testing it.";
+       throw [System.IO.DirectoryNotFoundException]::new("Cannot find path '$BuildOutDir' because it does not exist.")
+    }
     $manifestFile = [IO.FileInfo]::New([IO.Path]::Combine($BuildOutDir.FullName, "CliStyler.psd1"))
     Write-Host "[+] Checking Prerequisites ..." -ForegroundColor Green
     if (!$BuildOutDir.Exists) {
