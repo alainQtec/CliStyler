@@ -497,6 +497,7 @@ Begin {
             }
             $Version = $script:localizedData.ModuleVersion
             if ($null -eq $Version) { throw [System.ArgumentNullException]::new('version', "Please make sure localizedData.ModuleVersion is not null.") }
+            Write-Heading "Starting Build process. Workflow RunID: $env:RUN_ID`n"
             Write-Heading "Set Build Variables for Version: $Version"
             Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'BuildStart') -Value $(Get-Date -Format o)
             Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'BuildScriptPath') -Value $Path
