@@ -606,7 +606,7 @@ if ($PrivateModules.Count -gt 0) {
     }
 }
 # Dot source the files
-foreach ($Import in ($Public + $Private)) {
+foreach ($Import in ($Public, $Private)) {
     Try {
         . $Import.fullname
     } Catch {
