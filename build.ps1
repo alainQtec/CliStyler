@@ -1379,16 +1379,21 @@ Process {
     # if ((Get-Command dotnet -ErrorAction Ignore) -and ([bool](Get-Variable -Name IsWindows -ErrorAction Ignore) -and !$(Get-Variable IsWindows -ValueOnly))) {
     #     dotnet dev-certs https --trust
     # }
-    # Make sure wer'e using the latest nuget version
-    if ($null -eq (Get-Command Nuget -ErrorAction Ignore)) {
-        Invoke-WebRequest -Uri "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" -OutFile "$env:LOCALAPPDATA/Microsoft/Windows/PowerShell/PowerShellGet/NuGet.exe"
-    } else {
-        Nuget update -self
-    }
-    Invoke-CommandWithLog { Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false }
     if (!(Get-PackageProvider -Name Nuget)) {
         Invoke-CommandWithLog { Install-PackageProvider -Name NuGet -Force | Out-Null }
     }
+    # Make sure wer'e using the latest nuget version
+    if ($null -eq (Get-Command Nuget -ErrorAction Ignore)) {
+        $pltID = [System.Environment]::OSVersion.Platform; # [Enum]::GetNames([System.PlatformID])
+        if ($pltID -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE', 'Other')) {
+            Invoke-WebRequest -Uri "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" -OutFile "$env:LOCALAPPDATA/Microsoft/Windows/PowerShell/PowerShellGet/NuGet.exe"
+            . ([scriptblock]::Create((Invoke-RestMethod -Verbose:$false -Method Get https://api.github.com/gists/8b4ddc0302a9262cf7fc25e919227a2f).files.'Update_Session_Env.ps1'.content))
+            Update-SessionEnvironment
+        } else {
+            <# https://www.geeksforgeeks.org/how-to-install-nuget-from-command-line-on-linux #>
+        }
+    }; Nuget update -self
+    Invoke-CommandWithLog { Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false }
     $null = Import-PackageProvider -Name NuGet -Force
     foreach ($Name in @('PackageManagement', 'PowerShellGet')) {
         $Host.UI.WriteLine(); Resolve-Module -Name $Name -UpdateModule -Verbose:$script:DefaultParameterValues['*-Module:Verbose'] -ErrorAction Stop
