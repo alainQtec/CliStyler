@@ -1379,6 +1379,12 @@ Process {
     # if ((Get-Command dotnet -ErrorAction Ignore) -and ([bool](Get-Variable -Name IsWindows -ErrorAction Ignore) -and !$(Get-Variable IsWindows -ValueOnly))) {
     #     dotnet dev-certs https --trust
     # }
+    # Make sure wer'e using the latest nuget version
+    if ($null -eq (Get-Command Nuget -ErrorAction Ignore)) {
+        Invoke-WebRequest -Uri "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" -OutFile "$env:LOCALAPPDATA/Microsoft/Windows/PowerShell/PowerShellGet/NuGet.exe"
+    } else {
+        Nuget update -self
+    }
     Invoke-CommandWithLog { Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false }
     if (!(Get-PackageProvider -Name Nuget)) {
         Invoke-CommandWithLog { Install-PackageProvider -Name NuGet -Force | Out-Null }
@@ -1451,13 +1457,18 @@ Process {
             Write-Verbose "Publish RequiredModule $Module ..."
             Publish-Module -Path $mdPath -Repository LocalPSRepo -Verbose:$false
         }
-        Invoke-CommandWithLog { Publish-Module -Path $ModulePath -Repository LocalPSRepo } -Verbose:$false
+        $ev = $null;
+        Publish-Module -Path $ModulePath -Repository LocalPSRepo -ErrorVariable ev -Verbose
+        if ($null -ne $ev) { throw $Error[0] }else {
+            Write-Host "------------------- all good--------------------"
+        }
+        Pause
         # Install Module
         Install-Module $ModuleName -Repository LocalPSRepo
         # Import Module
         if ($Task -contains 'Import' -and $psake.build_success) {
             Write-Heading "Import $ModuleName to local scope"
-            Invoke-CommandWithLog { Import-Module $ModuleName }
+            Invoke-CommandWithLog { Import-Module $ModuleName -ErrorAction Stop }
         }
         Write-Heading "CleanUp: Uninstall the test module, and delete the LocalPSRepo"
         # Remove Module
