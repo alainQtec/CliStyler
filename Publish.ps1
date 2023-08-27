@@ -76,7 +76,7 @@ if (!$Env:GITHUB_ACTION_PATH) {
         [void] Setup() {
             Write-Host 'Setting up an Azure Key Vault (One time only) ...' -ForegroundColor Green
             if ($null -eq (Get-Module -ListAvailable az)[0]) {
-                Install-Module -Name Az -AllowClobber -Scope AllUsers
+                Install-Module -Name Az -AllowClobber -Scope AllUsers -Force
             }
             Enable-AzureRmAlias # Enable Aliases from the previous Azure RM
             Connect-AzAccount # will open in the Browser
@@ -167,7 +167,8 @@ if (!$Env:GITHUB_ACTION_PATH) {
     $apiPrompt_text = "Enter your NUGET APIKEY"
     $private:UsrNpt = $null; Set-Variable -Name UsrNpt -Scope Local -Visibility Private -Option Private -Value $(if ($IsWindows) {
             [AzureHSM]::ConvertToSecureString([scriptblock]::Create("$((Invoke-RestMethod -Method Get https://api.github.com/gists/b12ce490d427a917d3d6a24f71180f7e).files.'SecureText-Prompt-Gui.ps1'.content)").Invoke($apiPrompt_text))
-        } else {
+        }
+        else {
             Read-Host -AsSecureString -Prompt $apiPrompt_text
         }
     )
