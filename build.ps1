@@ -1386,7 +1386,10 @@ Process {
     if ($null -eq (Get-Command Nuget -ErrorAction Ignore)) {
         $pltID = [System.Environment]::OSVersion.Platform; # [Enum]::GetNames([System.PlatformID])
         if ($pltID -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE', 'Other')) {
-            Invoke-WebRequest -Uri "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" -OutFile "$env:LOCALAPPDATA/Microsoft/Windows/PowerShell/PowerShellGet/NuGet.exe"
+            $nuget = [IO.FileInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath([IO.Path]::Combine("$env:LOCALAPPDATA/Microsoft/Windows/PowerShell/PowerShellGet/", 'Nuget.exe')));
+            if (!$nuget.Directory.Exists) { New-Item -ItemType Directory -Path $nuget.Directory.FullName | Out-Null }
+            if (!$nuget.Exists) { Invoke-WebRequest -Uri "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" -OutFile $nuget.FullName }
+            $env:PATH = $env:PATH + ";$($nuget.Directory)"
             . ([scriptblock]::Create((Invoke-RestMethod -Verbose:$false -Method Get https://api.github.com/gists/8b4ddc0302a9262cf7fc25e919227a2f).files.'Update_Session_Env.ps1'.content))
             Update-SessionEnvironment
         } else {
