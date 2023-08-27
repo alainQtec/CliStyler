@@ -1435,7 +1435,7 @@ Process {
         Write-Verbose "PowerShellGet requires NuGet provider version '2.8.5.201' or newer to interact with NuGet-based repositories."
         Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
     }
-    if (Get-PackageSource -Name PSGallery -ErrorAction Ignore) {
+    if (!(Get-PackageSource -Name PSGallery -ErrorAction Ignore)) {
         Register-PSRepository -Default -InstallationPolicy Trusted
     }
     if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {
