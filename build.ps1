@@ -192,7 +192,7 @@ Begin {
                 if (($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildSystem')) -eq 'VSTS' -and $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'CommitMessage')) -match '!deploy' -and $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BranchName')) -eq "main") -or $script:ForceDeploy -eq $true) {
                     if ($null -eq (Get-Module PoshTwit -ListAvailable)) {
                         "    Installing PoshTwit module..."
-                        Install-Module PoshTwit -Scope CurrentUser
+                        Install-Module PoshTwit -Scope CurrentUser -Force
                     }
                     Import-Module PoshTwit -Verbose:$false
                     # Load the module, read the exported functions, update the psd1 FunctionsToExport
@@ -637,7 +637,7 @@ Begin {
                 [psobject]$Info = $null
                 [bool]$IsReadOnly = $false
                 [bool]$HasVersiondirs = $false
-
+            
                 LocalPsModule([string]$Name) {
                     $ModuleBase = $null; $AvailModls = Get-Module -ListAvailable -Name $Name -ErrorAction Ignore
                     if ($null -ne $AvailModls) { $ModuleBase = ($AvailModls.ModuleBase -as [string[]])[0] }
@@ -699,11 +699,10 @@ Begin {
                 }
                 static hidden [PSCustomObject] Find([string]$Name, [string]$scope, [version]$version) {
                     $ModuleScope = $scope; if ([string]::IsNullOrWhiteSpace($ModuleScope)) { $ModuleScope = 'LocalMachine' }
-                    $Module = $null; $PsModule_Paths = $([LocalPsModule]::Get_Module_Paths($ModuleScope) |
-                        ForEach-Object { [IO.DirectoryInfo]::New("$_") } | Where-Object { $_.Exists }
-                    ).GetDirectories().Where({ $_.Name -eq $Name });
+                    $Module = $null; $PsModule_Paths = [LocalPsModule]::Get_Module_Paths($ModuleScope) | ForEach-Object { [IO.DirectoryInfo]::New("$_") } | Where-Object { $_.Exists }
+                    $PsModule_Paths = $PsModule_Paths.GetDirectories().Where({ $_.Name -eq $Name });
                     if ($PsModule_Paths.count -gt 0) {
-                        $Get_versionDir = [scriptblock]::Create('param([IO.DirectoryInfo[]]$direcrory) return ($direcrory | ForEach-Object { $_.GetDirectories() | Where-Object { $_.Name -as [version] -is [version] } })')
+                        $Get_versionDir = [scriptblock]::Create('param([IO.DirectoryInfo[]]$directories) return $($directories | ForEach-Object { $_.GetDirectories() | Where-Object { $_.Name -as [version] -is [version] } })')
                         $has_versionDir = $Get_versionDir.Invoke($PsModule_Paths).count -gt 0
                         $ModulePsdFiles = $PsModule_Paths | ForEach-Object {
                             if ($has_versionDir) {
@@ -743,7 +742,7 @@ Begin {
                         if ($Scope -eq 'CurrentUser') { $_Module_Paths = $_Module_Paths.Where({ $_ -notlike "*$($allUsers_path | Split-Path)*" -and $_ -notlike "*$env:SystemRoot*" }) }
                     }
                     else {
-                        $allUsers_path = Split-Path -Path ([System.Management.Automation.Platform]::SelectProductNameForDirectory('SHARED_MODULES')) -Parent
+                        $allUsers_path = Split-Path -Path ([scriptblock]::Create("[System.Management.Automation.Platform]::SelectProductNameForDirectory('SHARED_MODULES')").Invoke()) -Parent
                         if ($Scope -eq 'CurrentUser') { $_Module_Paths = $_Module_Paths.Where({ $_ -notlike "*$($allUsers_path | Split-Path)*" -and $_ -notlike "*/var/lib/*" }) }
                     }
                     return $_Module_Paths
@@ -866,7 +865,7 @@ Begin {
                     # There are issues with pester 5.4.1 syntax, so I'll keep using -SkipPublisherCheck.
                     # https://stackoverflow.com/questions/51508982/pester-sample-script-gets-be-is-not-a-valid-should-operator-on-windows-10-wo
                     if ($Version -eq 'latest') {
-                        Install-Module -Name $moduleName -SkipPublisherCheck:$($moduleName -eq 'Pester')
+                        Install-Module -Name $moduleName -SkipPublisherCheck:$($moduleName -eq 'Pester') -Force
                     }
                     else {
                         Install-Module -Name $moduleName -RequiredVersion $Version -SkipPublisherCheck:$($moduleName -eq 'Pester')
@@ -1051,9 +1050,6 @@ Begin {
                 }
                 catch [System.IO.FileLoadException] {
                     Write-Warning "$($_.Exception.Message) "
-                }
-                catch {
-                    throw $_.Exception
                 }
             }
         }
@@ -1458,7 +1454,9 @@ Process {
             <# https://www.geeksforgeeks.org/how-to-install-nuget-from-command-line-on-linux #>
         }
     }
-    Invoke-CommandWithLog { Nuget update -self }
+    else {
+        Invoke-CommandWithLog { Nuget update -self | Out-Null }
+    }
     Invoke-CommandWithLog { Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false }
     $null = Import-PackageProvider -Name NuGet -Force
     foreach ($Name in @('PackageManagement', 'PowerShellGet')) {
