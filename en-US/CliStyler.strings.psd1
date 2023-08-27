@@ -1,6 +1,6 @@
 ﻿@{
     ModuleName    = 'CliStyler'
-    ModuleVersion = [System.Management.Automation.SemanticVersion]::new(0, 1, 0)
+    ModuleVersion = [version]::new(0, 1, 0)
     ReleaseNotes  = @"
 # Changelog`n`n
 
