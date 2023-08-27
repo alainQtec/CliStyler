@@ -1322,7 +1322,8 @@ Begin {
             ContentType = 'application/json'
             Body        = (ConvertTo-Json $releaseData -Compress)
         }
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        # Prevent tsl errors
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12; [Net.ServicePointManager]::SecurityProtocol = "Tls, Tls11, Tls12"
         $result = Invoke-RestMethod @releaseParams
         $uploadUri = $result | Select-Object -ExpandProperty upload_url
         $uploadUri = $uploadUri -creplace '\{\?name,label\}'
@@ -1372,19 +1373,15 @@ Process {
     # if ((Get-Command dotnet -ErrorAction Ignore) -and ([bool](Get-Variable -Name IsWindows -ErrorAction Ignore) -and !$(Get-Variable IsWindows -ValueOnly))) {
     #     dotnet dev-certs https --trust
     # }
-    if ($null -eq (Get-PSRepository -Name PSGallery -ErrorAction Ignore)) {
-        Unregister-PSRepository -Name PSGallery -Verbose:$false -ErrorAction Ignore
-        Register-PSRepository -Default -InstallationPolicy Trusted
-    }
-    # https://devblogs.microsoft.com/powershell/when-powershellget-v1-fails-to-install-the-nuget-provider/
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {
-        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false
-    }
+    if ($null -eq (Get-PSRepository -Name PSGallery -ErrorAction Ignore)) { Unregister-PSRepository -Name PSGallery -Verbose:$false -ErrorAction Ignore }
+    # Prevent tsl errors & othet prompts : https://devblogs.microsoft.com/powershell/when-powershellget-v1-fails-to-install-the-nuget-provider/
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12; [Net.ServicePointManager]::SecurityProtocol = "Tls, Tls11, Tls12";
     if (!(Get-PackageProvider -Name Nuget -ErrorAction Ignore)) {
         Write-Verbose "PowerShellGet requires NuGet provider version '2.8.5.201' or newer to interact with NuGet-based repositories."
         Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
     }
+    Register-PSRepository -Default -InstallationPolicy Trusted
+    Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false
     Write-Verbose "Make sure wer'e using the latest nuget cli version ..."
     if ($null -eq (Get-Command Nuget -ErrorAction Ignore)) {
         $pltID = [System.Environment]::OSVersion.Platform; # [Enum]::GetNames([System.PlatformID])
