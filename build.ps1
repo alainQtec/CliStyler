@@ -1380,14 +1380,19 @@ Process {
     #     dotnet dev-certs https --trust
     # }
     if (!(Get-PackageProvider -Name Nuget)) {
-        Invoke-CommandWithLog { Install-PackageProvider -Name NuGet -Force | Out-Null }
+        # PowerShellGet requires NuGet provider version '2.8.5.201' or newer to interact with NuGet-based repositories.
+        Invoke-CommandWithLog { Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null }
     }
     # Make sure wer'e using the latest nuget version
     if ($null -eq (Get-Command Nuget -ErrorAction Ignore)) {
         $pltID = [System.Environment]::OSVersion.Platform; # [Enum]::GetNames([System.PlatformID])
         if ($pltID -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE', 'Other')) {
-            $nuget = [IO.FileInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath([IO.Path]::Combine("$env:LOCALAPPDATA/Microsoft/Windows/PowerShell/PowerShellGet/", 'Nuget.exe')));
+            # In most cases the NuGet provider is either located in '$env:ProgramFiles/PackageManagement/ProviderAssemblies/' or '$env:LOCALAPPDATA/PackageManagement/ProviderAssemblies/'. IE:
+            $PfilesNuget = [IO.FileInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("$env:ProgramFiles/PackageManagement/ProviderAssemblies/Nuget.exe"))
+            $lappdtNuget = [IO.FileInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("$env:LOCALAPPDATA/PackageManagement/ProviderAssemblies/Nuget.exe"))
+            $nuget = if ($PfilesNuget.Exists -and $lappdtNuget.Exists) { [void]$PfilesNuget.delete(); $lappdtNuget } elseif ($PfilesNuget.Exists -and !$lappdtNuget.Exists) { $PfilesNuget } else { $lappdtNuget }
             if (!$nuget.Directory.Exists) { New-Item -ItemType Directory -Path $nuget.Directory.FullName | Out-Null }
+            Write-Verbose "Downloading latest nuget cli version from dist.nuget.org ..."
             if (!$nuget.Exists) { Invoke-WebRequest -Uri "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" -OutFile $nuget.FullName }
             $env:PATH = $env:PATH + ";$($nuget.Directory)"
             . ([scriptblock]::Create((Invoke-RestMethod -Verbose:$false -Method Get https://api.github.com/gists/8b4ddc0302a9262cf7fc25e919227a2f).files.'Update_Session_Env.ps1'.content))
