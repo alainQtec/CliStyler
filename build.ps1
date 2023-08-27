@@ -699,14 +699,13 @@ Begin {
                 }
                 static hidden [PSCustomObject] Find([string]$Name, [string]$scope, [version]$version) {
                     $ModuleScope = $scope; if ([string]::IsNullOrWhiteSpace($ModuleScope)) { $ModuleScope = 'LocalMachine' }
-                    $Module = $null; $PsModule_Paths = [LocalPsModule]::Get_Module_Paths($ModuleScope) | ForEach-Object { [IO.DirectoryInfo]::New("$_") } | Where-Object { $_.Exists }
+                    $Module = $null; $PsModule_Paths = ([LocalPsModule]::Get_Module_Paths($ModuleScope) -as [IO.DirectoryInfo[]]).Where({ $_.Exists })
                     $PsModule_Paths = $PsModule_Paths.GetDirectories().Where({ $_.Name -eq $Name });
                     if ($PsModule_Paths.count -gt 0) {
-                        $Get_versionDir = [scriptblock]::Create('param([IO.DirectoryInfo[]]$directories) return $($directories | ForEach-Object { $_.GetDirectories() | Where-Object { $_.Name -as [version] -is [version] } })')
-                        $has_versionDir = $Get_versionDir.Invoke($PsModule_Paths).count -gt 0
+                        $has_versionDir = [LocalPsModule]::Get_versionDirs($PsModule_Paths).Count -gt 0
                         $ModulePsdFiles = $PsModule_Paths | ForEach-Object {
                             if ($has_versionDir) {
-                                [string]$MaxVersion = ($Get_versionDir.Invoke([IO.DirectoryInfo]::New("$_")) | Select-Object @{l = 'version'; e = { $_.BaseName -as [version] } } | Measure-Object -Property version -Maximum).Maximum
+                                [string]$MaxVersion = ([LocalPsModule]::Get_versionDirs([IO.DirectoryInfo]::New("$_")) | Select-Object @{l = 'version'; e = { $_.BaseName -as [version] } } | Measure-Object -Property version -Maximum).Maximum
                                 [IO.FileInfo]::New([IO.Path]::Combine("$_", $MaxVersion, $_.BaseName + '.psd1'))
                             }
                             else {
@@ -731,6 +730,12 @@ Begin {
                 }
                 static [string[]] Get_Module_Paths() {
                     return [LocalPsModule]::Get_Module_Paths($null)
+                }
+                static [IO.DirectoryInfo[]] Get_versionDirs([IO.DirectoryInfo[]]$directories) {
+                    return $directories.ForEach({
+                            $_.GetDirectories() | Where-Object { $_.Name -as [version] -is [version] }
+                        }
+                    )
                 }
                 static [string[]] Get_Module_Paths([string]$scope) {
                     [string[]]$_Module_Paths = [System.Environment]::GetEnvironmentVariable('PSModulePath').Split([IO.Path]::PathSeparator)
@@ -766,10 +771,10 @@ Begin {
         }
         process {
             $PsModule = switch ($true) {
-                $($PSBoundParameters.ContainsKey('version') -and $PSBoundParameters.ContainsKey('Scope')) { New-Object LocalPsModule($Name, $Scope, $version) ; break }
-                $($PSBoundParameters.ContainsKey('version') -and !$PSBoundParameters.ContainsKey('Scope')) { New-Object LocalPsModule($Name, 'LocalMachine', $version) ; break }
-                $(!$PSBoundParameters.ContainsKey('version') -and $PSBoundParameters.ContainsKey('Scope')) { New-Object LocalPsModule($Name, $Scope, $version) ; break }
-                $(!$PSBoundParameters.ContainsKey('version') -and !$PSBoundParameters.ContainsKey('Scope')) { New-Object LocalPsModule($Name) ; break }
+                $($PSBoundParameters.ContainsKey('version') -and $PSBoundParameters.ContainsKey('Scope')) { [LocalPsModule]::New($Name, $Scope, $version) ; break }
+                $($PSBoundParameters.ContainsKey('version') -and !$PSBoundParameters.ContainsKey('Scope')) { [LocalPsModule]::New($Name, 'LocalMachine', $version) ; break }
+                $(!$PSBoundParameters.ContainsKey('version') -and $PSBoundParameters.ContainsKey('Scope')) { [LocalPsModule]::New($Name, $Scope) ; break }
+                $(!$PSBoundParameters.ContainsKey('version') -and !$PSBoundParameters.ContainsKey('Scope')) { [LocalPsModule]::New($Name) ; break }
                 Default { New-Object LocalPsModule($Name) }
             }
         }
