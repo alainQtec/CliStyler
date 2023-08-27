@@ -1369,24 +1369,26 @@ Process {
     }
     Write-Heading "Prepare package feeds"
     $Host.ui.WriteLine()
+    # if ((Get-Command dotnet -ErrorAction Ignore) -and ([bool](Get-Variable -Name IsWindows -ErrorAction Ignore) -and !$(Get-Variable IsWindows -ValueOnly))) {
+    #     dotnet dev-certs https --trust
+    # }
     if ($null -eq (Get-PSRepository -Name PSGallery -ErrorAction Ignore)) {
         Unregister-PSRepository -Name PSGallery -Verbose:$false -ErrorAction Ignore
         Register-PSRepository -Default -InstallationPolicy Trusted
     }
+    # https://devblogs.microsoft.com/powershell/when-powershellget-v1-fails-to-install-the-nuget-provider/
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {
-        Invoke-CommandWithLog { Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false }
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false
     }
-    # if ((Get-Command dotnet -ErrorAction Ignore) -and ([bool](Get-Variable -Name IsWindows -ErrorAction Ignore) -and !$(Get-Variable IsWindows -ValueOnly))) {
-    #     dotnet dev-certs https --trust
-    # }
-    if (!(Get-PackageProvider -Name Nuget)) {
-        # PowerShellGet requires NuGet provider version '2.8.5.201' or newer to interact with NuGet-based repositories.
-        Invoke-CommandWithLog { Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null }
+    if (!(Get-PackageProvider -Name Nuget -ErrorAction Ignore)) {
+        Write-Verbose "PowerShellGet requires NuGet provider version '2.8.5.201' or newer to interact with NuGet-based repositories."
+        Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
     }
-    # Make sure wer'e using the latest nuget version
+    Write-Verbose "Make sure wer'e using the latest nuget cli version ..."
     if ($null -eq (Get-Command Nuget -ErrorAction Ignore)) {
         $pltID = [System.Environment]::OSVersion.Platform; # [Enum]::GetNames([System.PlatformID])
-        if ($pltID -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE', 'Other')) {
+        if ($pltID -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')) {
             # In most cases the NuGet provider is either located in '$env:ProgramFiles/PackageManagement/ProviderAssemblies/' or '$env:LOCALAPPDATA/PackageManagement/ProviderAssemblies/'. IE:
             $PfilesNuget = [IO.FileInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("$env:ProgramFiles/PackageManagement/ProviderAssemblies/Nuget.exe"))
             $lappdtNuget = [IO.FileInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("$env:LOCALAPPDATA/PackageManagement/ProviderAssemblies/Nuget.exe"))
@@ -1400,7 +1402,8 @@ Process {
         } else {
             <# https://www.geeksforgeeks.org/how-to-install-nuget-from-command-line-on-linux #>
         }
-    }; Nuget update -self
+    }
+    Invoke-CommandWithLog { Nuget update -self }
     Invoke-CommandWithLog { Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false }
     $null = Import-PackageProvider -Name NuGet -Force
     foreach ($Name in @('PackageManagement', 'PowerShellGet')) {
