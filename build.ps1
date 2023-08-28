@@ -705,11 +705,11 @@ Begin {
                         $has_versionDir = [LocalPsModule]::Get_versionDirs($PsModule_Paths).Count -gt 0
                         $ModulePsdFiles = $PsModule_Paths | ForEach-Object {
                             if ($has_versionDir) {
-                                [string]$MaxVersion = ([LocalPsModule]::Get_versionDirs([IO.DirectoryInfo]::New("$_")) | Select-Object @{l = 'version'; e = { $_.BaseName -as [version] } } | Measure-Object -Property version -Maximum).Maximum
-                                [IO.FileInfo]::New([IO.Path]::Combine("$_", $MaxVersion, $_.BaseName + '.psd1'))
+                                [string]$MaxVersion = ([LocalPsModule]::Get_versionDirs([IO.DirectoryInfo]::New("$($_.FullName)")) | Select-Object @{l = 'version'; e = { $_.BaseName -as [version] } } | Measure-Object -Property version -Maximum).Maximum
+                                [IO.FileInfo]::New([IO.Path]::Combine("$($_.FullName)", $MaxVersion, $_.BaseName + '.psd1'))
                             }
                             else {
-                                [IO.FileInfo]::New([IO.Path]::Combine("$_", $_.BaseName + '.psd1'))
+                                [IO.FileInfo]::New([IO.Path]::Combine("$($_.FullName)", $_.BaseName + '.psd1'))
                             }
                         } | Where-Object { $_.Exists }
                         $Get_ModuleVersion = {
