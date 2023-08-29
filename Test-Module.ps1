@@ -41,15 +41,17 @@ param (
 )
 begin {
     $TestResults = $null
-    # Get latest version
+    $BuildOutput = [IO.DirectoryInfo]::New([IO.Path]::Combine($PSScriptRoot, 'BuildOutput', 'CliStyler'))
+    if (!$BuildOutput.Exists) {
+        Write-Warning "NO_Build_OutPut | Please make sure to Build the module successfully before running tests..";
+        throw [System.IO.DirectoryNotFoundException]::new("Cannot find path '$($BuildOutput.FullName)' because it does not exist.")
+    }
+    # Get latest built version
     if ([string]::IsNullOrWhiteSpace($version)) {
-        $version = [version[]][IO.DirectoryInfo]::New([IO.Path]::Combine($PSScriptRoot, 'BuildOutput', 'CliStyler')).GetDirectories().Name | Select-Object -Last 1
+        $version = $BuildOutput.GetDirectories().Name -as 'version[]' | Select-Object -Last 1
     }
     $BuildOutDir = Resolve-Path $([IO.Path]::Combine($PSScriptRoot, 'BuildOutput', 'CliStyler', $version)) -ErrorAction Ignore | Get-Item -ErrorAction Ignore
-    if (!$BuildOutDir.Exists) {
-       Write-Warning "NO_Build_OutPut | Please make sure to Build the module successfully before testing it.";
-       throw [System.IO.DirectoryNotFoundException]::new("Cannot find path '$BuildOutDir' because it does not exist.")
-    }
+    if (!$BuildOutDir.Exists) { throw [System.IO.DirectoryNotFoundException]::new($BuildOutDir) }
     $manifestFile = [IO.FileInfo]::New([IO.Path]::Combine($BuildOutDir.FullName, "CliStyler.psd1"))
     Write-Host "[+] Checking Prerequisites ..." -ForegroundColor Green
     if (!$BuildOutDir.Exists) {
@@ -73,17 +75,17 @@ begin {
 
 process {
     Get-Module CliStyler | Remove-Module
-    # Write-Host "[+] Generating test files ..." -ForegroundColor Green
-    # $testFiles | ForEach-Object {
-    #     if ($_.Exists) { Remove-Item -Path $_.FullName -Force };
-    #     New-Item -Path $_.FullName -ItemType File -Force | Out-Null
-    # }
+    Write-Host "[+] Generating test files ..." -ForegroundColor Green
+    $testFiles | ForEach-Object {
+        if ($_.Exists) { Remove-Item -Path $_.FullName -Force };
+        New-Item -Path $_.FullName -ItemType File -Force | Out-Null
+    }
     if ($Resources.Exists) {
         $Resources.GetFiles().ForEach({ Remove-Item -Path $_.FullName -Force })
     } else {
         New-Item -Path $Resources.FullName -ItemType Directory | Out-Null
     }
-    
+
     Write-Host "[+] Testing Module ..." -ForegroundColor Green
     if (!$skipBuildOutputTest.IsPresent) {
         Test-ModuleManifest -Path $manifestFile.FullName -ErrorAction Stop -Verbose
@@ -92,7 +94,7 @@ process {
     $PesterConfig.TestResult.OutputFormat = "NUnitXml"
     $PesterConfig.TestResult.OutputPath = [IO.Path]::Combine("$TestsPath", "results.xml")
     $PesterConfig.TestResult.Enabled = $True
-    $TestResults =  Invoke-Pester -Configuration $PesterConfig -PassThru
+    $TestResults = Invoke-Pester -Configuration $PesterConfig
 }
 
 end {

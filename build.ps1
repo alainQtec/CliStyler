@@ -912,11 +912,11 @@ Begin {
                     Write-TerminatingError @Error_params
                 }
                 if (!(Test-Path -Path $Module_Path -PathType Container -ErrorAction Ignore)) { New-Directory -Path $Module_Path }
-                $ModuleNupkg = [IO.Path]::Combine($Module_Path, "$moduleName.nupkg")
+                $ModuleNupkg = [IO.Path]::Combine($Module_Path, "$moduleName.nupkg.zip")
                 Write-Host "Download $moduleName.nupkg ... " -NoNewline -ForegroundColor DarkCyan
                 Invoke-WebRequest -Uri $downloadUrl -OutFile $ModuleNupkg -Verbose:$false;
                 if ($IsWindows) { Unblock-File -Path $ModuleNupkg }
-                Expand-Archive $ModuleNupkg -DestinationPath $Module_Path -Verbose:$false -Force
+                Expand-Archive -Path $ModuleNupkg -DestinationPath $Module_Path -Verbose:$false;
                 $Items_to_CleanUp = [System.Collections.ObjectModel.Collection[System.Object]]::new()
                 @('_rels', 'package', '*Content_Types*.xml', "$ModuleNupkg", "$($moduleName.Tolower()).nuspec" ) | ForEach-Object { [void]$Items_to_CleanUp.Add((Get-Item -Path "$Module_Path/$_" -ErrorAction Ignore)) }
                 $Items_to_CleanUp = $Items_to_CleanUp | Sort-Object -Unique
@@ -1365,7 +1365,7 @@ Process {
     $security_protocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::SystemDefault
     if ([Net.SecurityProtocolType].GetMember("Tls12").Count -gt 0) { $security_protocol = $security_protocol -bor [Net.SecurityProtocolType]::Tls12 }
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]$security_protocol
-    $Host.ui.WriteLine()
+    $Host.ui.WriteLine();
     Invoke-CommandWithLog { $script:DefaultParameterValues = @{
             '*-Module:Verbose'           = $false
             'Import-Module:ErrorAction'  = 'Stop'
@@ -1384,18 +1384,13 @@ Process {
     if ($null -eq (Get-PSRepository -Name PSGallery -ErrorAction Ignore)) { Unregister-PSRepository -Name PSGallery -Verbose:$false -ErrorAction Ignore }
     # Prevent tsl errors & othet prompts : https://devblogs.microsoft.com/powershell/when-powershellget-v1-fails-to-install-the-nuget-provider/
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12; [Net.ServicePointManager]::SecurityProtocol = "Tls, Tls11, Tls12";
-    if (!(Get-PackageProvider -Name Nuget -ErrorAction Ignore)) {
-        Write-Verbose "PowerShellGet requires NuGet provider version '2.8.5.201' or newer to interact with NuGet-based repositories."
-        Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
-    }
-    if (!(Get-PackageSource -Name PSGallery -ErrorAction Ignore)) {
-        Register-PSRepository -Default -InstallationPolicy Trusted
-    }
-    if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {
-        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false
+    Invoke-CommandWithLog {
+        Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false
+        # ForceBootstrap to latest version.
+        # ie: PowerShellGet requires NuGet provider version '2.8.5.201' or newer to interact with NuGet-based repositories.
     }
     Write-Verbose "Make sure wer'e using the latest nuget cli version ..."
-    if ($null -eq (Get-Command Nuget -ErrorAction Ignore)) {
+    if (!(Get-Command -Name Nuget -Type Application -ErrorAction Ignore)) {
         $pltID = [System.Environment]::OSVersion.Platform; # [Enum]::GetNames([System.PlatformID])
         if ($pltID -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')) {
             # In most cases the NuGet provider is either located in '$env:ProgramFiles/PackageManagement/ProviderAssemblies/' or '$env:LOCALAPPDATA/PackageManagement/ProviderAssemblies/'. IE:
@@ -1410,12 +1405,17 @@ Process {
             Update-SessionEnvironment
             $Host.ui.WriteLine()
         } else {
+            Write-Host "TODO: Install-nuget-cli-on-linux."
             <# https://www.geeksforgeeks.org/how-to-install-nuget-from-command-line-on-linux #>
         }
-    } else {
-        Invoke-CommandWithLog { Nuget update -self | Out-Null }
     }
-    Invoke-CommandWithLog { Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false }
+    Invoke-CommandWithLog { Nuget update -self | Out-Null }
+    if (!(Get-PackageSource -Name PSGallery -ErrorAction Ignore)) {
+        Register-PSRepository -Default -InstallationPolicy Trusted
+    }
+    if (Get-PackageSource -Name PSGallery -ErrorAction Ignore) {
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false
+    }
     $null = Import-PackageProvider -Name NuGet -Force
     foreach ($Name in @('PackageManagement', 'PowerShellGet')) {
         $Host.UI.WriteLine(); Resolve-Module -Name $Name -UpdateModule -Verbose:$script:DefaultParameterValues['*-Module:Verbose'] -ErrorAction Stop
