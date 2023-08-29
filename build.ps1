@@ -25,8 +25,7 @@ param(
             }
             if ($IsValid) {
                 return $true
-            }
-            else {
+            } else {
                 throw "ValidSet: $($Tasks -join ', ')."
             }
         }
@@ -122,8 +121,7 @@ Begin {
                         "$($ModuleManifest.Name)"
                         "$ProjectName.psm1"
                     ).ForEach({ Copy-Item -Recurse -Path $([IO.Path]::Combine($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildScriptPath')), $_)) -Destination $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'PSModulePath')) })
-                }
-                catch {
+                } catch {
                     throw $_
                 }
                 if (!$ModuleManifest.Exists) { throw [System.IO.FileNotFoundException]::New('Could Not Create Module Manifest!') }
@@ -258,8 +256,7 @@ Begin {
                                 }
                                 if ($manifest.ModuleVersion.ToString() -eq $versionToDeploy.ToString()) {
                                     "    Manifest is already the expected version. Skipping manifest version update"
-                                }
-                                else {
+                                } else {
                                     "    Updating module version on manifest to [$($versionToDeploy)]"
                                     Update-Metadata -Path $manifestPath -PropertyName ModuleVersion -Value $versionToDeploy -Verbose
                                 }
@@ -267,14 +264,12 @@ Begin {
                                     "    Publishing version [$($versionToDeploy)] to PSGallery..."
                                     Publish-Module -Path $outputModVerDir -NuGetApiKey $Env:NugetApiKey -Repository PSGallery -Verbose
                                     "    Deployment successful!"
-                                }
-                                catch {
+                                } catch {
                                     $err = $_
                                     Write-BuildError $err.Exception.Message
                                     throw $err
                                 }
-                            }
-                            else {
+                            } else {
                                 "    [SKIPPED] Deployment of version [$($versionToDeploy)] to PSGallery"
                             }
                             $commitId = git rev-parse --verify HEAD
@@ -301,8 +296,7 @@ Begin {
                                 }
                                 Publish-GithubRelease @gitHubParams
                                 "    Release creation successful!"
-                            }
-                            else {
+                            } else {
                                 "    [SKIPPED] Publishing Release v$($versionToDeploy) @ commit Id [$($commitId)] to GitHub"
                             }
                             if ($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildSystem')) -eq 'VSTS' -and -not [String]::IsNullOrEmpty($Env:TwitterAccessSecret) -and -not [String]::IsNullOrEmpty($Env:TwitterAccessToken) -and -not [String]::IsNullOrEmpty($Env:TwitterConsumerKey) -and -not [String]::IsNullOrEmpty($Env:TwitterConsumerSecret)) {
@@ -318,21 +312,17 @@ Begin {
                                 "    Tweet text: $text"
                                 Publish-Tweet -Tweet $text -ConsumerKey $Env:TwitterConsumerKey -ConsumerSecret $Env:TwitterConsumerSecret -AccessToken $Env:TwitterAccessToken -AccessSecret $Env:TwitterAccessSecret
                                 "    Tweet successful!"
-                            }
-                            else {
+                            } else {
                                 "    [SKIPPED] Twitter update of new release"
                             }
-                        }
-                        catch {
+                        } catch {
                             Write-BuildError $_
                         }
-                    }
-                    else {
+                    } else {
                         Write-Host -ForegroundColor Yellow "No module version matched! Negating deployment to prevent errors"
                         Set-EnvironmentVariable -name ($env:RUN_ID + 'CommitMessage') -Value $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'CommitMessage')).Replace('!deploy', '')
                     }
-                }
-                else {
+                } else {
                     Write-Host -ForegroundColor Magenta "Build system is not VSTS!"
                 }
             }
@@ -356,8 +346,7 @@ Begin {
             }
             if ($Task -eq 'TestOnly') {
                 Set-Variable -Name ExcludeTag -Scope global -Value @('Module')
-            }
-            else {
+            } else {
                 Set-Variable -Name ExcludeTag -Scope global -Value $null
             }
             Invoke-psake @psakeParams @verbose
@@ -382,12 +371,10 @@ Begin {
                         [Environment]::SetEnvironmentVariable($Name, $null)
                     }
                     [Console]::WriteLine()
-                }
-                else {
+                } else {
                     Write-BuildLog "No old Env variables to remove; Move on ...`n"
                 }
-            }
-            else {
+            } else {
                 Write-Warning "Invalid RUN_ID! Skipping ...`n"
             }
             $Host.UI.WriteLine()
@@ -536,8 +523,7 @@ Begin {
         $build_date = if ([string]::IsNullOrWhiteSpace($buildstart)) { Get-Date }else { Get-Date $buildstart }
         $elapse_msg = if ([bool][int]$env:IsCI) {
             "[ + $(((Get-Date) - $build_date).ToString())]"
-        }
-        else {
+        } else {
             "[$((Get-Date).ToString("HH:mm:ss")) + $(((Get-Date) - $build_date).ToString())]"
         }
         "$elapse_msg{0}" -f (' ' * (30 - $elapse_msg.Length))
@@ -637,7 +623,7 @@ Begin {
                 [psobject]$Info = $null
                 [bool]$IsReadOnly = $false
                 [bool]$HasVersiondirs = $false
-            
+
                 LocalPsModule([string]$Name) {
                     $ModuleBase = $null; $AvailModls = Get-Module -ListAvailable -Name $Name -ErrorAction Ignore
                     if ($null -ne $AvailModls) { $ModuleBase = ($AvailModls.ModuleBase -as [string[]])[0] }
@@ -649,8 +635,7 @@ Begin {
                         $this.Psd1 = $Module.Psd1
                         $this.Name = $Module.Name
                         $this.Info = $Module.Info
-                    }
-                    else {
+                    } else {
                         $this._Init_($Name, 'LocalMachine', $null)
                     }
                 }
@@ -669,8 +654,7 @@ Begin {
                     if ($null -ne $AvailModls) { $ModuleBase = ($AvailModls.ModuleBase -as [string[]])[0] }
                     if ($null -ne $ModuleBase) {
                         return [LocalPsModule]::Find($Name, [IO.DirectoryInfo]::New($ModuleBase))
-                    }
-                    else {
+                    } else {
                         return [LocalPsModule]::Find($Name, 'LocalMachine', $null)
                     }
                 }
@@ -707,8 +691,7 @@ Begin {
                             if ($has_versionDir) {
                                 [string]$MaxVersion = ([LocalPsModule]::Get_versionDirs([IO.DirectoryInfo]::New("$($_.FullName)")) | Select-Object @{l = 'version'; e = { $_.BaseName -as [version] } } | Measure-Object -Property version -Maximum).Maximum
                                 [IO.FileInfo]::New([IO.Path]::Combine("$($_.FullName)", $MaxVersion, $_.BaseName + '.psd1'))
-                            }
-                            else {
+                            } else {
                                 [IO.FileInfo]::New([IO.Path]::Combine("$($_.FullName)", $_.BaseName + '.psd1'))
                             }
                         } | Where-Object { $_.Exists }
@@ -720,8 +703,7 @@ Begin {
                         }
                         $Req_ModulePsd1 = if ($null -eq $version) {
                             $ModulePsdFiles | Sort-Object -Property version -Descending | Select-Object -First 1
-                        }
-                        else {
+                        } else {
                             $ModulePsdFiles | Where-Object { $Get_ModuleVersion.Invoke($_.FullName) -eq $version }
                         }
                         $Module = [LocalPsModule]::Find($Req_ModulePsd1.Name, $Req_ModulePsd1.Directory)
@@ -745,8 +727,7 @@ Begin {
                         $psv = Get-Variable PSVersionTable -ValueOnly
                         $allUsers_path = Join-Path -Path $env:ProgramFiles -ChildPath $(if ($psv.ContainsKey('PSEdition') -and $psv.PSEdition -eq 'Core') { 'PowerShell' } else { 'WindowsPowerShell' })
                         if ($Scope -eq 'CurrentUser') { $_Module_Paths = $_Module_Paths.Where({ $_ -notlike "*$($allUsers_path | Split-Path)*" -and $_ -notlike "*$env:SystemRoot*" }) }
-                    }
-                    else {
+                    } else {
                         $allUsers_path = Split-Path -Path ([scriptblock]::Create("[System.Management.Automation.Platform]::SelectProductNameForDirectory('SHARED_MODULES')").Invoke()) -Parent
                         if ($Scope -eq 'CurrentUser') { $_Module_Paths = $_Module_Paths.Where({ $_ -notlike "*$($allUsers_path | Split-Path)*" -and $_ -notlike "*/var/lib/*" }) }
                     }
@@ -810,8 +791,7 @@ Begin {
         )
         if ($PSBoundParameters.ContainsKey('version')) {
             return (Get-LocalModule -Name $Name -version ([version]::New($version)) -Scope $Scope).Path
-        }
-        else {
+        } else {
             return (Get-LocalModule -Name $Name -Scope $Scope).Path
         }
     }
@@ -851,16 +831,14 @@ Begin {
                                 $_versionTable = Get-Variable PSVersionTable -ValueOnly
                                 $module_folder = if ($_versionTable.ContainsKey('PSEdition') -and $_versionTable.PSEdition -eq 'Core') { 'PowerShell' } else { 'WindowsPowerShell' }
                                 Join-Path -Path $([System.Environment]::GetFolderPath('MyDocuments')) -ChildPath $module_folder
-                            }
-                            else {
+                            } else {
                                 Split-Path -Path $([System.Management.Automation.Platform]::SelectProductNameForDirectory('USER_MODULES')) -Parent
                             }
                         ), 'Modules'
                     )
                     if (![string]::IsNullOrWhiteSpace($ReqVersion)) {
                         [IO.Path]::Combine($p.FullName, $Name, $ReqVersion)
-                    }
-                    else {
+                    } else {
                         [IO.Path]::Combine($p.FullName, $Name)
                     }
                 }
@@ -871,8 +849,7 @@ Begin {
                     # https://stackoverflow.com/questions/51508982/pester-sample-script-gets-be-is-not-a-valid-should-operator-on-windows-10-wo
                     if ($Version -eq 'latest') {
                         Install-Module -Name $moduleName -SkipPublisherCheck:$($moduleName -eq 'Pester') -Force
-                    }
-                    else {
+                    } else {
                         Install-Module -Name $moduleName -RequiredVersion $Version -SkipPublisherCheck:$($moduleName -eq 'Pester')
                     }
                 }
@@ -881,12 +858,10 @@ Begin {
                     try {
                         if ($Version -eq 'latest') {
                             Update-Module -Name $moduleName
-                        }
-                        else {
+                        } else {
                             Update-Module -Name $moduleName -RequiredVersion $Version
                         }
-                    }
-                    catch {
+                    } catch {
                         if ($ret -lt 1 -and $_.ErrorRecord.Exception.Message -eq "Module '$moduleName' was not installed by using Install-Module, so it cannot be updated.") {
                             Get-Module $moduleName | Remove-Module -Force; $ret++
                             $UpdateModule.Invoke()
@@ -900,13 +875,11 @@ Begin {
             try {
                 if ($PSCmdlet.MyInvocation.BoundParameters['UpdateOnly']) {
                     $UpdateModule.Invoke()
-                }
-                else {
+                } else {
                     $InstallModule.Invoke()
                 }
                 $Module_Path = (Get-LocalModule -Name $moduleName).Psd1 | Split-Path -ErrorAction Stop
-            }
-            catch {
+            } catch {
                 $VerboseMsg = 'Normal Installation Failed :' + $_.Exception.Message + "`nUsing Manual Instalation ..."
                 Write-Verbose $VerboseMsg -Verbose
                 # For some reason Install-Module can fail (ex: on Arch). This is a manual workaround when that happens.
@@ -928,8 +901,7 @@ Begin {
                     [ValidateNotNullOrEmpty()][string]$moduleName = $response.properties.Id
                     [ValidateNotNullOrEmpty()][string]$Version = $response.properties.Version
                     $Module_Path = $Get_Install_Path.Invoke($moduleName, $Version)
-                }
-                catch {
+                } catch {
                     $Error_params = @{
                         ExceptionName    = 'System.InvalidOperationException'
                         ExceptionMessage = "Failed to find PsGallery release for '$moduleName' version '$Version'. Url used: '$url'. $($_.Exception.Message)"
@@ -977,8 +949,7 @@ Begin {
                         $latest_Version = $_Local_Module.Version
                     }
                 }
-            }
-            else {
+            } else {
                 $url = "https://www.powershellgallery.com/packages/$Name/?dummy=$(Get-Random)"; $request = [System.Net.WebRequest]::Create($url)
                 # U can also use api: [version]$Version = (Invoke-RestMethod -Uri "https://www.powershellgallery.com/api/v2/Packages?`$filter=Id eq '$PackageName' and IsLatestVersion" -Method Get -Verbose:$false).properties.Version
                 $latest_Version = [version]::new(); $request.AllowAutoRedirect = $false
@@ -986,8 +957,7 @@ Begin {
                     $response = $request.GetResponse()
                     $latest_Version = $response.GetResponseHeader("Location").Split("/")[-1] -as [Version]
                     $response.Close(); $response.Dispose()
-                }
-                catch [System.Net.WebException], [System.Net.Http.HttpRequestException], [System.Net.Sockets.SocketException] {
+                } catch [System.Net.WebException], [System.Net.Http.HttpRequestException], [System.Net.Sockets.SocketException] {
                     $Error_params = @{
                         ExceptionName    = $_.Exception.GetType().FullName
                         ExceptionMessage = "No Internet! " + $_.Exception.Message
@@ -996,8 +966,7 @@ Begin {
                         ErrorCategory    = 'ConnectionError'
                     }
                     Write-TerminatingError @Error_params
-                }
-                catch {
+                } catch {
                     $Error_params = @{
                         ExceptionName    = $_.Exception.GetType().FullName
                         ExceptionMessage = "PackageName '$PackageName' was Not Found. " + $_.Exception.Message
@@ -1041,19 +1010,16 @@ Begin {
                 if (!$Local_ModuleVersion -or $Local_ModuleVersion -eq ([version]::New())) {
                     Write-Verbose -Message "Install $moduleName ..."
                     Install-PsGalleryModule -Name $moduleName
-                }
-                elseif ($Local_ModuleVersion -lt $Latest_ModuleVerion -and $UpdateModule.IsPresent) {
+                } elseif ($Local_ModuleVersion -lt $Latest_ModuleVerion -and $UpdateModule.IsPresent) {
                     Write-Verbose -Message "Update $moduleName from version $Local_ModuleVersion to version [$Latest_ModuleVerion] ..." -Verbose
                     Install-PsGalleryModule -Name $moduleName -Version $Latest_ModuleVerion -UpdateOnly
-                }
-                else {
+                } else {
                     Write-Verbose -Message "Module $moduleName is already Installed and Up-to-date."
                 }
                 Write-Verbose -Message "Importing module $moduleName ..."
                 try {
                     Get-ModulePath -Name $moduleName | Import-Module -Verbose:$($PSCmdlet.MyInvocation.BoundParameters['verbose'] -eq $true) -Force:$($PSCmdlet.MyInvocation.BoundParameters['Force'] -eq $true)
-                }
-                catch [System.IO.FileLoadException] {
+                } catch [System.IO.FileLoadException] {
                     Write-Warning "$($_.Exception.Message) "
                 }
             }
@@ -1085,33 +1051,26 @@ Begin {
             if ($PSBoundParameters.ContainsKey('Debug') -and $PSBoundParameters['Debug'] -eq $true) {
                 $fg = 'Yellow'
                 $lvl = '##[debug]   '
-            }
-            elseif ($PSBoundParameters.ContainsKey('Verbose') -and $PSBoundParameters['Verbose'] -eq $true) {
+            } elseif ($PSBoundParameters.ContainsKey('Verbose') -and $PSBoundParameters['Verbose'] -eq $true) {
                 $fg = if ($Host.UI.RawUI.ForegroundColor -eq 'Gray') {
                     'White'
-                }
-                else {
+                } else {
                     'Gray'
                 }
                 $lvl = '##[Verbose] '
-            }
-            elseif ($Severe) {
+            } elseif ($Severe) {
                 $fg = 'Red'
                 $lvl = '##[Error]   '
-            }
-            elseif ($Warning) {
+            } elseif ($Warning) {
                 $fg = 'Yellow'
                 $lvl = '##[Warning] '
-            }
-            elseif ($Cmd) {
+            } elseif ($Cmd) {
                 $fg = 'Magenta'
                 $lvl = '##[Command] '
-            }
-            else {
+            } else {
                 $fg = if ($Host.UI.RawUI.ForegroundColor -eq 'Gray') {
                     'White'
-                }
-                else {
+                } else {
                     'Gray'
                 }
                 $lvl = '##[Info]    '
@@ -1122,23 +1081,20 @@ Begin {
                 $Message -split "[\r\n]" | Where-Object { $_ } | ForEach-Object {
                     $lvl + $_
                 }
-            }
-            else {
+            } else {
                 $date = "$(Get-Elapsed) "
                 if ($Cmd) {
                     $i = 0
                     $Message -split "[\r\n]" | Where-Object { $_ } | ForEach-Object {
                         $tag = if ($i -eq 0) {
                             'PS > '
-                        }
-                        else {
+                        } else {
                             '  >> '
                         }
                         $lvl + $date + $tag + $_
                         $i++
                     }
-                }
-                else {
+                } else {
                     $Message -split "[\r\n]" | Where-Object { $_ } | ForEach-Object {
                         $lvl + $date + $_
                     }
@@ -1155,8 +1111,7 @@ Begin {
         Process {
             if ([bool][int]$env:IsCI) {
                 Write-Host "##vso[task.logissue type=warning; ]$Message"
-            }
-            else {
+            } else {
                 Write-Warning $Message
             }
         }
@@ -1208,8 +1163,7 @@ Begin {
         ) -join "`n"
         if ($Passthru) {
             $msgList
-        }
-        else {
+        } else {
             $msgList | Write-Host -ForegroundColor Cyan
         }
     }
@@ -1239,7 +1193,7 @@ Begin {
         # Write-Debug "FindHashKeyValue: $SearchPath -eq $($CurrentPath -Join '.')"
         if ($SearchPath -eq ($CurrentPath -Join '.') -or $SearchPath -eq $CurrentPath[-1]) {
             return $Ast |
-            Add-Member NoteProperty HashKeyPath ($CurrentPath -join '.') -PassThru -Force | Add-Member NoteProperty HashKeyName ($CurrentPath[-1]) -PassThru -Force
+                Add-Member NoteProperty HashKeyPath ($CurrentPath -join '.') -PassThru -Force | Add-Member NoteProperty HashKeyName ($CurrentPath[-1]) -PassThru -Force
         }
 
         if ($Ast.PipelineElements.Expression -is [System.Management.Automation.Language.HashtableAst] ) {
@@ -1305,8 +1259,7 @@ Begin {
                 if ($SingleKey.Count -gt 1) {
                     Write-Error -Exception System.Reflection.AmbiguousMatchException -Message ("Found more than one '$PropertyName' in $Path. Please specify a dotted path instead. Matching paths include: '{0}'" -f ($KeyValue.HashKeyPath -join "', '")) -ErrorId "AmbiguousMatch,Metadata\Get-Metadata" -Category "InvalidArgument"
                     return
-                }
-                else {
+                } else {
                     $KeyValue = $SingleKey
                 }
             }
@@ -1456,12 +1409,10 @@ Process {
             . ([scriptblock]::Create((Invoke-RestMethod -Verbose:$false -Method Get https://api.github.com/gists/8b4ddc0302a9262cf7fc25e919227a2f).files.'Update_Session_Env.ps1'.content))
             Update-SessionEnvironment
             $Host.ui.WriteLine()
-        }
-        else {
+        } else {
             <# https://www.geeksforgeeks.org/how-to-install-nuget-from-command-line-on-linux #>
         }
-    }
-    else {
+    } else {
         Invoke-CommandWithLog { Nuget update -self | Out-Null }
     }
     Invoke-CommandWithLog { Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false }
@@ -1491,13 +1442,11 @@ Process {
                 $MSG | Write-Host -ForegroundColor Yellow
                 if (($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'CommitMessage')) -match '!deploy' -and $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BranchName')) -eq "main") -or $script:ForceDeploy -eq $true) {
                     Write-Warning "Force Deploy"
-                }
-                else {
+                } else {
                     "Skipping psake for this job!" | Write-Host -ForegroundColor Yellow
                     exit 0
                 }
-            }
-            else {
+            } else {
                 $MSG | Write-Host -ForegroundColor Green
             }
         }
@@ -1509,15 +1458,14 @@ Process {
             $Module_Path = [IO.Path]::Combine($Project_Path, $Project_Name);
             Invoke-CommandWithLog { Import-Module $Module_Path -Verbose }
         }
-    }
-    else {
+    } else {
         Invoke-Command -ScriptBlock $PSake_Build
         Write-Heading "Create a Local repository"
         $RepoPath = [IO.Path]::Combine([environment]::GetEnvironmentVariable("HOME"), 'LocalPSRepo')
         if (!(Get-Variable -Name IsWindows -ErrorAction Ignore) -or $(Get-Variable IsWindows -ValueOnly)) {
             $RepoPath = [IO.Path]::Combine([environment]::GetEnvironmentVariable("UserProfile"), 'LocalPSRepo')
         }; if (!(Test-Path -Path $RepoPath -PathType Container -ErrorAction Ignore)) { New-Directory -Path $RepoPath | Out-Null }
-        Invoke-Command -ScriptBlock ([scriptblock]::Create("Register-PSRepository LocalPSRepo -SourceLocation '$RepoPath' -PublishLocation '$RepoPath' -InstallationPolicy Trusted -Verbose:`$false -ErrorAction Ignore; Register-PackageSource -Name LocalPsRepo -Location '$RepoPath' -Trusted -ProviderName Bootstrap -ErrorAction Ignore"))
+        Invoke-Command -ScriptBlock ([scriptblock]::Create("Register-PSRepository -Name LocalPSRepo -SourceLocation '$RepoPath' -PublishLocation '$RepoPath' -InstallationPolicy Trusted -Verbose:`$false -ErrorAction Ignore; Register-PackageSource -Name LocalPsRepo -Location '$RepoPath' -Trusted -ProviderName Bootstrap -ErrorAction Ignore"))
         Write-Verbose "Verify that the new repository was created successfully"
         if ($null -eq (Get-PSRepository LocalPSRepo -Verbose:$false -ErrorAction Ignore)) {
             Throw [System.Exception]::New('Failed to create LocalPsRepo', [System.IO.DirectoryNotFoundException]::New($RepoPath))
