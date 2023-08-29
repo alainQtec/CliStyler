@@ -6,7 +6,7 @@
 .LICENSEURI https://github.com/alainQtec/CliStyler/blob/main/LICENSE
 .TAGS Powershell Profile
 #>
-Write-ColorOutput {
+function Write-ColorOutput {
     <#
     .SYNOPSIS
         Colored Write-Output

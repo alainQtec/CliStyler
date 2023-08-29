@@ -1479,12 +1479,14 @@ Process {
         }
         Write-Heading "Publish '$ModuleName' to Local PsRepository"
         $RequiredModules = Get-ModuleManifest ([IO.Path]::Combine($ModulePath, "$([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')).psd1")) RequiredModules -Verbose:$false
+        if ($RequiredModules.count -eq 0) { Write-Host "Horray, this module has zero dependencies!" }
         foreach ($Module in $RequiredModules) {
             $md = Get-Module $Module -Verbose:$false; $mdPath = $md.Path | Split-Path
             Write-Verbose "Publish RequiredModule $Module ..."
             Publish-Module -Path $mdPath -Repository LocalPSRepo -Verbose:$false
         }
-        Publish-Module -Path $ModulePath -Repository LocalPSRepo -ErrorVariable ev -Verbose
+        Write-Verbose "Publish Module $ModulePath to LocalPSRepo ..."
+        Publish-Module -Path $ModulePath -Repository LocalPSRepo -Verbose
         # Install Module
         Install-Module $ModuleName -Repository LocalPSRepo
         # Import Module

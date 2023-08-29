@@ -169,7 +169,7 @@ class CliStyler {
     # The default launch ascii : alainQtec. but TODO: add a way to load it from a config instead of hardcoding it.
     static [string] $Default_Term_Ascii = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('bSUBJQElASVuJW0lbiUgACAAIAAgACAAIAAgAG0lASUBJQElbiVtJW4lCgADJW0lASVuJQMlAyUDJSAAIAAgAG0lbiUgACAAAyVtJQElbiUDJW8lcCVuJQoAAyUDJSAAAyUDJQMlbSUBJQElbiVtJW4lASVuJQMlAyUgAAMlAyVuJW0lbSUBJQElbiUBJQElbiUKAAMlcCUBJW8lAyUDJQMlbSUgAAMlfAADJW0lbiVuJQMlIAADJQMlAyUDJXwAbSVuJQMlbSUBJW8lCgADJW0lASVuJQMlAyVwJXAlbyVwJW4lAyUDJQMlAyVwJQElbyUDJQMlcCVuJQMlASUrJXAlASVuJQoAcCVvJSAAcCVvJXAlASVvJQElASVvJW8lbyVwJW8lASUBJW4lcCUBJQElbyUBJQElbyUBJQElbyUKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABwJW8lCgAiAFEAdQBpAGMAawAgAHAAcgBvAGQAdQBjAHQAaQB2AGUAIAB0AGUAYwBoACIA'));
     static [string[]] $Default_Dependencies = @('Terminal-Icons', 'PSReadline', 'Pester', 'Posh-git', 'PSWinGlue', 'PowerShellForGitHub', 'PowerType');
-    static hidden [string] $WINDOWS_TERMINAL_PATH = [IO.Path]::Combine($env:LocalAppdata, 'Packages','Microsoft.WindowsTerminal_8wekyb3d8bbwe','LocalState','settings.json');
+    static hidden [string] $WINDOWS_TERMINAL_PATH = [IO.Path]::Combine($env:LocalAppdata, 'Packages', 'Microsoft.WindowsTerminal_8wekyb3d8bbwe', 'LocalState', 'settings.json');
     static hidden [PSCustomObject] $TERMINAL_Settings
 
     CliStyler() {
@@ -189,11 +189,11 @@ class CliStyler {
         # Initialize or Reload $PROFILE and the core functions necessary for displaying your custom prompt.
         # it is used to Load/reload PowerShell $Profile
         # Its usefull when you want to reload powershell session after making changes to your PSProfile.
-    
-        Write-verbose '[CliStyler] Setting up required resources ... (One-time process)'
+
+        Write-Verbose '[CliStyler] Setting up required resources ... (One-time process)'
         [CliStyler]::ResolveRequirements($DependencyModules, $force); [CliStyler]::CurrExitCode = $true # RESET current exit code.
 
-         Write-verbose '[CliStyler] Load configuration settings ...'
+        Write-Verbose '[CliStyler] Load configuration settings ...'
         [CliStyler]::LoadConfiguration()
 
         Set-Variable -Name Colors -Value $([CliStyler]::colors) -Scope Global -Visibility Public -Option AllScope
@@ -235,7 +235,7 @@ class CliStyler {
                 Import-Module -Name $_
             }
         )
-        
+
         # BeautifyTerminal :
         [CliStyler]::AddColorScheme()
         [CliStyler]::InstallNerdFont()
@@ -250,9 +250,9 @@ class CliStyler {
         if (!(Test-Path -Path $env:USERPROFILE/.config/winfetch/config.ps1)) {
             winfetch -genconf
         }
-        (Get-Content $env:USERPROFILE/.config/winfetch/config.ps1).Replace('# $ShowDisks = @("*")','$ShowDisks = @("*")') | Set-Content $env:USERPROFILE/.config/winfetch/config.ps1
-        (Get-Content $env:USERPROFILE/.config/winfetch/config.ps1).Replace('# $memorystyle','$memorystyle') | Set-Content $env:USERPROFILE/.config/winfetch/config.ps1
-        (Get-Content $env:USERPROFILE/.config/winfetch/config.ps1).Replace('# $diskstyle','$diskstyle') | Set-Content $env:USERPROFILE/.config/winfetch/config.ps1
+        (Get-Content $env:USERPROFILE/.config/winfetch/config.ps1).Replace('# $ShowDisks = @("*")', '$ShowDisks = @("*")') | Set-Content $env:USERPROFILE/.config/winfetch/config.ps1
+        (Get-Content $env:USERPROFILE/.config/winfetch/config.ps1).Replace('# $memorystyle', '$memorystyle') | Set-Content $env:USERPROFILE/.config/winfetch/config.ps1
+        (Get-Content $env:USERPROFILE/.config/winfetch/config.ps1).Replace('# $diskstyle', '$diskstyle') | Set-Content $env:USERPROFILE/.config/winfetch/config.ps1
 
         # winget install JanDeDobbeleer.OhMyPosh
     }
@@ -302,15 +302,14 @@ class CliStyler {
         }
 
         # Check color schema added before or not?
-        if ($settings.schemes | Where-Object -Property name -eq $sonokaiSchema.name) {
+        if ($settings.schemes | Where-Object -Property name -EQ $sonokaiSchema.name) {
             Write-Host "[CliStyler] Terminal Color Theme was added before"
         } else {
             $settings.schemes += $sonokaiSchema
             # Check default profile has colorScheme or not
             if ($settings.profiles.defaults | Get-Member -Name 'colorScheme' -MemberType Properties) {
                 $settings.profiles.defaults.colorScheme = $sonokaiSchema.name
-            }
-            else {
+            } else {
                 $settings.profiles.defaults | Add-Member -MemberType NoteProperty -Name 'colorScheme' -Value $sonokaiSchema.name
             }
             [CliStyler]::SaveTerminalSettings($settings);
@@ -384,7 +383,7 @@ class CliStyler {
         Write-Host "[3/3] Installing $wngt ..." -ForegroundColor Green
         Add-AppxPackage -Path $wngt
         # cleanup
-        $deps + $wngt | ForEach-Object { Remove-Item ($_ -as 'IO.FileInfo').FullName -Force -ErrorAction Ignore}
+        $deps + $wngt | ForEach-Object { Remove-Item ($_ -as 'IO.FileInfo').FullName -Force -ErrorAction Ignore }
         # restore
         $progressPreference = $PPref
         $InformationPreference = $IPref
@@ -475,7 +474,7 @@ class CliStyler {
             $b = "$($escape)48;2;$($Background.Red);$($Background.Green);$($Background.Blue)m"
             $f = "$($escape)38;2;$($24bitcolors.$ForegroundColor.Red);$($24bitcolors.$ForegroundColor.Green);$($24bitcolors.$ForegroundColor.Blue)m"
             $b = "$($escape)48;2;$($24bitcolors.$BackgroundColor.Red);$($24bitcolors.$BackgroundColor.Green);$($24bitcolors.$BackgroundColor.Blue)m"
-            if ([bool](Get-Command  Write-Info -ErrorAction SilentlyContinue)) {
+            if ([bool](Get-Command Write-Info -ErrorAction SilentlyContinue)) {
                 Write-Info ($f + $b + $Text + $resetAttributes) -NoNewline:$NoNewLine
             } else {
                 Write-Host ($f + $b + $Text + $resetAttributes) -NoNewline:$NoNewLine
@@ -505,14 +504,14 @@ class CliStyler {
         return [clistyler]::get_short_Path($Path, 2, 2, [CliStyler]::DirSeparator, [char]8230)
     }
     static hidden [string] Get_Short_Path([string]$Path, [char]$TruncateChar) {
-        
+
         return [clistyler]::get_short_Path($Path, 2, 2, [CliStyler]::DirSeparator, $TruncateChar)
     }
     static hidden [string] Get_Short_Path(
         [string]$Path,
-        [int]$KeepBefore,# Number of parts to keep before truncating. Default value is 2.
+        [int]$KeepBefore, # Number of parts to keep before truncating. Default value is 2.
         [int]$KeepAfter, # Number of parts to keep after truncating. Default value is 1.
-        [Char]$Separator,# Path separator character.
+        [Char]$Separator, # Path separator character.
         [char]$TruncateChar
     ) {
         $Path = (Resolve-Path -Path $Path).Path;
