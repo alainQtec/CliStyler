@@ -66,7 +66,6 @@ begin {
         throw [System.IO.FileNotFoundException]::New("Could Not Find Module manifest File $([IO.Path]::GetRelativePath($PSScriptRoot, $manifestFile.FullName))")
     }
     if (!(Test-Path -Path $([IO.Path]::Combine($PSScriptRoot, "CliStyler.psd1")) -PathType Leaf -ErrorAction Ignore)) { throw [System.IO.FileNotFoundException]::New("Module manifest file Was not Found in '$($BuildOutDir.FullName)'.") }
-    # $Resources = [System.IO.DirectoryInfo]::new([IO.Path]::Combine("$TestsPath", 'Resources'))
     $script:fnNames = [System.Collections.Generic.List[string]]::New(); $testFiles = [System.Collections.Generic.List[IO.FileInfo]]::New()
     [void]$testFiles.Add([IO.FileInfo]::New([IO.Path]::Combine("$PSScriptRoot", 'Tests', 'CliStyler.Intergration.Tests.ps1')))
     [void]$testFiles.Add([IO.FileInfo]::New([IO.Path]::Combine("$PSScriptRoot", 'Tests', 'CliStyler.Features.Tests.ps1')))
@@ -77,12 +76,7 @@ process {
     Get-Module CliStyler | Remove-Module
     Write-Host "[+] Checking test files ..." -ForegroundColor Green
     $missingTestFiles = $testFiles.Where({ !$_.Exists })
-    if ($missingTestFiles.count -gt 0) {
-        throw [System.IO.FileNotFoundException]::new("DFDF, DSSD")
-    }
-    if (!$Resources.Exists) {
-        throw [System.IO.DirectoryNotFoundException]::New($Resources.FullName)
-    }
+    if ($missingTestFiles.count -gt 0) { throw [System.IO.FileNotFoundException]::new($($testFiles.BaseName -join ', ')) }
     Write-Host "[+] Testing ModuleManifest ..." -ForegroundColor Green
     if (!$skipBuildOutputTest.IsPresent) {
         Test-ModuleManifest -Path $manifestFile.FullName -ErrorAction Stop -Verbose
