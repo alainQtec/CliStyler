@@ -232,7 +232,7 @@ class CliStyler {
         }
         $requiredModules.ForEach({
                 if ($null -eq (Get-Module $_ -ListAvailable)) { Install-Module -Name $_ }
-                Import-Module -Name $_
+                Import-Module -Name $_ -WarningAction SilentlyContinue
             }
         )
 
@@ -326,7 +326,7 @@ class CliStyler {
         Expand-Archive -Path $fczip -DestinationPath ([IO.Path]::Combine($env:temp, 'FiraCodeExpand'))
 
         # TODO: #13 Check error handling
-        Import-Module -Name PSWinGlue
+        Import-Module -Name PSWinGlue -WarningAction silentlyContinue
 
         # TODO: #14 Check if fonts exist, skip this step
         # Elevate to Administrative
@@ -578,7 +578,7 @@ class CliStyler {
                 Write-Host ''
             }
         } catch {
-            < #Do this if a terminating exception happens#>
+            #Do this if a terminating exception happens#
             # if ($_.Exception.WasThrownFromThrowStatement) {
             #     [System.Management.Automation.ErrorRecord]$_ | Write-Log $([CliStyler]::LogFile.FullName)
             # }
