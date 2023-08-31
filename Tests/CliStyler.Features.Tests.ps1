@@ -1,20 +1,4 @@
-# Load Pester module for testing
-Import-Module Pester -Force -ErrorAction Stop
-
-# Define the path to your module
-$ModulePath = Join-Path $PSScriptRoot "BuildOutput\CliStyler"
-
 Describe "Feature tests: CliStyler" {
-    BeforeAll {
-        # Import the module and store the module information
-        $ModuleInfo = Import-Module -Name $ModulePath -PassThru
-    }
-
-    AfterAll {
-        # Remove the imported module after tests
-        Remove-Module -Name $ModuleInfo.Name -Force
-    }
-
     Context "Feature 1" {
         It "Does something expected" {
             # Write tests to verify the behavior of a specific feature.
@@ -29,5 +13,5 @@ Describe "Feature tests: CliStyler" {
         }
     }
 
-    # Add more contexts and tests to cover various features and functionalities.
+    # TODO: Add more contexts and tests to cover various features and functionalities.
 }

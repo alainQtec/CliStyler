@@ -1,25 +1,20 @@
-Describe "Module tests: $($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')))" {
-    BeforeAll {
-        $script:ModuleName = (Get-Item $PSScriptRoot).Name
-        $script:ModulePath = [IO.Path]::Combine($PSScriptRoot, "BuildOutput", $ModuleName) | Get-Item
-        $script:moduleVersion = ((Get-ChildItem $ModulePath).Where({ $_.Name -as 'version' -is 'version'}).Name -as 'version[]' | Sort-Object -Descending)[0].ToString()
-        
-        Get-Module -Name $ModuleName | Remove-Module # Make sure no versions of the module are loaded
-        
-        Write-Host "[+] Import the module and store the information about the module ..." -ForegroundColor Green
-        $script:ModuleInformation = Import-Module -Name "$ModulePath" -PassThru
-        $script:ModuleInformation | Format-List
-        
-        Write-Host "[+] Get all functions present in the Manifest ..." -ForegroundColor Green
-        $script:ExportedFunctions = $ModuleInformation.ExportedFunctions.Values.Name
-        
-        Write-Host "[+] Get all functions present in the Public folder ..." -ForegroundColor Green
-        $script:PS1Functions = Get-ChildItem -Path "$ModulePath/$moduleVersion/Public/*.ps1"
-    }
-    AfterAll {
-        Remove-Module -Name $ModuleName -Force
-    }
+$ModuleName = (Get-Item $PSScriptRoot).Name
+$ModulePath = [IO.Path]::Combine($PSScriptRoot, "BuildOutput", $ModuleName) | Get-Item
+$moduleVersion = ((Get-ChildItem $ModulePath).Where({ $_.Name -as 'version' -is 'version'}).Name -as 'version[]' | Sort-Object -Descending)[0].ToString()
 
+Get-Module -Name $ModuleName | Remove-Module # Make sure no versions of the module are loaded
+
+Write-Host "[+] Import the module and store the information about the module ..." -ForegroundColor Green
+$ModuleInformation = Import-Module -Name "$ModulePath" -PassThru
+$ModuleInformation | Format-List
+
+Write-Host "[+] Get all functions present in the Manifest ..." -ForegroundColor Green
+$ExportedFunctions = $ModuleInformation.ExportedFunctions.Values.Name
+
+Write-Host "[+] Get all functions present in the Public folder ..." -ForegroundColor Green
+$PS1Functions = Get-ChildItem -Path "$ModulePath/$moduleVersion/Public/*.ps1"
+
+Describe "Module tests for $($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')))" {
     Context " Confirm valid Manifest file" {
         It "Should contain RootModule" {
             $ModuleInformation.RootModule | Should -Not -BeNullOrEmpty
@@ -74,3 +69,4 @@ Describe "Module tests: $($([Environment]::GetEnvironmentVariable($env:RUN_ID + 
         }
     }
 }
+Remove-Module -Name $ModuleName -Force
