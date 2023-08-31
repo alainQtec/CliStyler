@@ -66,7 +66,7 @@ begin {
         throw [System.IO.FileNotFoundException]::New("Could Not Find Module manifest File $([IO.Path]::GetRelativePath($PSScriptRoot, $manifestFile.FullName))")
     }
     if (!(Test-Path -Path $([IO.Path]::Combine($PSScriptRoot, "CliStyler.psd1")) -PathType Leaf -ErrorAction Ignore)) { throw [System.IO.FileNotFoundException]::New("Module manifest file Was not Found in '$($BuildOutDir.FullName)'.") }
-    $Resources = [System.IO.DirectoryInfo]::new([IO.Path]::Combine("$TestsPath", 'Resources'))
+    # $Resources = [System.IO.DirectoryInfo]::new([IO.Path]::Combine("$TestsPath", 'Resources'))
     $script:fnNames = [System.Collections.Generic.List[string]]::New(); $testFiles = [System.Collections.Generic.List[IO.FileInfo]]::New()
     [void]$testFiles.Add([IO.FileInfo]::New([IO.Path]::Combine("$PSScriptRoot", 'Tests', 'CliStyler.Intergration.Tests.ps1')))
     [void]$testFiles.Add([IO.FileInfo]::New([IO.Path]::Combine("$PSScriptRoot", 'Tests', 'CliStyler.Features.Tests.ps1')))
@@ -75,18 +75,15 @@ begin {
 
 process {
     Get-Module CliStyler | Remove-Module
-    Write-Host "[+] Generating test files ..." -ForegroundColor Green
-    $testFiles | ForEach-Object {
-        if ($_.Exists) { Remove-Item -Path $_.FullName -Force };
-        New-Item -Path $_.FullName -ItemType File -Force | Out-Null
+    Write-Host "[+] Checking test files ..." -ForegroundColor Green
+    $missingTestFiles = $testFiles.Where({ !$_.Exists })
+    if ($missingTestFiles.count -gt 0) {
+        throw [System.IO.FileNotFoundException]::new("DFDF, DSSD")
     }
-    if ($Resources.Exists) {
-        $Resources.GetFiles().ForEach({ Remove-Item -Path $_.FullName -Force })
-    } else {
-        New-Item -Path $Resources.FullName -ItemType Directory | Out-Null
+    if (!$Resources.Exists) {
+        throw [System.IO.DirectoryNotFoundException]::New($Resources.FullName)
     }
-
-    Write-Host "[+] Testing Module ..." -ForegroundColor Green
+    Write-Host "[+] Testing ModuleManifest ..." -ForegroundColor Green
     if (!$skipBuildOutputTest.IsPresent) {
         Test-ModuleManifest -Path $manifestFile.FullName -ErrorAction Stop -Verbose
     }

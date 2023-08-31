@@ -1402,14 +1402,12 @@ Process {
             if (!$nuget.Exists) { Invoke-WebRequest -Uri "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" -OutFile $nuget.FullName }
             $env:PATH = $env:PATH + ";$($nuget.Directory)"
             . ([scriptblock]::Create((Invoke-RestMethod -Verbose:$false -Method Get https://api.github.com/gists/8b4ddc0302a9262cf7fc25e919227a2f).files.'Update_Session_Env.ps1'.content))
-            Update-SessionEnvironment
-            $Host.ui.WriteLine()
-        } else {
-            Write-Host "TODO: Install-nuget-cli-on-linux."
-            <# https://www.geeksforgeeks.org/how-to-install-nuget-from-command-line-on-linux #>
+            Update-SessionEnvironment; $Host.ui.WriteLine()
+            Invoke-CommandWithLog { Nuget update -self | Out-Null }
         }
+        # else: { Write-Host "TODO: Install-nuget-cli-on-linux."
+        # https://www.geeksforgeeks.org/how-to-install-nuget-from-command-line-on-linux }
     }
-    Invoke-CommandWithLog { Nuget update -self | Out-Null }
     if (!(Get-PackageSource -Name PSGallery -ErrorAction Ignore)) {
         Register-PSRepository -Default -InstallationPolicy Trusted
     }

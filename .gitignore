@@ -405,8 +405,3 @@ FodyWeavers.xsd
 BuildOutput/
 LocalPSRepo/
 Tests/results.xml
-Tests/Resources/
-Tests/CliStyler.Module.Tests.ps1
-Tests/CliStyler.Features.Tests.ps1
-Tests/CliStyler.Intergration.Tests.ps1
-Tests/Resources/Test-GitHubScript.ps1
