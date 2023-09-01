@@ -1417,10 +1417,12 @@ Process {
         $Host.UI.WriteLine(); Resolve-Module -Name $Name -UpdateModule -Verbose:$script:DefaultParameterValues['*-Module:Verbose'] -ErrorAction Stop
     }
     $Host.ui.WriteLine();
-    # Config dotnet For publish operations. dotnet command version '2.0.0' or newer is required to interact with the NuGet-based repositories.
-    if (!(Get-Command dotnet -ErrorAction Ignore)) {
-        Write-Host "Resolve dependency [dotnet cli]`n" -ForegroundColor Magenta
-        [System.Environment]::SetEnvironmentVariable('DOTNET_ROOT', [IO.Path]::Combine($HOME, '.dotnet'))
+    if (!(Get-Command dotnet -ErrorAction Ignore) -and ![bool][int]$env:IsAC) {
+        Write-Host "Resolve dependency [dotnet cli] For publish operations`n" -ForegroundColor Magenta
+        Invoke-CommandWithLog {
+            [System.Environment]::SetEnvironmentVariable('DOTNET_ROOT', [IO.Path]::Combine($HOME, '.dotnet'))
+            # dotnet command version '2.0.0' or newer is required to interact with the NuGet-based repositories.
+        }
         if ($Is_Windows) {
             # Run a separate PowerShell process because the script calls exit, so it will end the current PowerShell session.
             &powershell -NoProfile -ExecutionPolicy unrestricted -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; &([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing 'https://dot.net/v1/dotnet-install.ps1'))) -channel LTS"
@@ -1433,7 +1435,10 @@ Process {
             Write-Output 'export PATH=$PATH:$DOTNET_ROOT:$DOTNET_ROOT/tools' >> ~/.bashrc
         }
     }
-    dotnet dev-certs https --trust
+    Invoke-CommandWithLog {
+        dotnet dev-certs https --trust
+        # https://learn.microsoft.com/en-us/aspnet/core/security/enforcing-ssl?&tabs=visual-studio%2Clinux-ubuntu#ssl-linux
+    }
     Write-Heading "Finalizing build Prerequisites and Resolving dependencies ..."
     if ($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildSystem')) -eq 'VSTS') {
         if ($Task -eq 'Deploy') {
