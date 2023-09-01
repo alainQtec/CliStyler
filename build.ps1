@@ -1378,7 +1378,7 @@ Process {
     Write-Heading "Prepare package feeds"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     # [IO.FileInfo]::new((Get-Module PackageManagement -ErrorAction Stop).Path).Directory.Parent
-    Get-PackageProvider | Where-Object name -eq 'nuget' | Install-PackageProvider -Force -Confirm:$false
+    Get-PackageProvider | Where-Object name -Like "*nuget*" | ForEach-Object { Install-PackageProvider -Name $_.Name -Force -Confirm:$false}
     Install-Module -Name PowerShellGet -Force -AllowClobber -Confirm:$false; Update-Module -Name PowerShellGet -Confirm:$false
     $Host.ui.WriteLine();
     $pltID = [System.Environment]::OSVersion.Platform; # [Enum]::GetNames([System.PlatformID])
