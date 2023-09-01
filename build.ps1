@@ -1378,8 +1378,9 @@ Process {
     Write-Heading "Prepare package feeds"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     # [IO.FileInfo]::new((Get-Module PackageManagement -ErrorAction Stop).Path).Directory.Parent
-    $Host.ui.WriteLine(); Register-PackageSource -Name nuget.org -ProviderName NuGet -Location "https://api.nuget.org/v3/index.json" -Trusted
-    Get-PackageProvider | Where-Object name -eq 'nuget' | Install-PackageProvider -Force
+    Get-PackageProvider | Where-Object name -eq 'nuget' | Install-PackageProvider -Force -Confirm:$false
+    Install-Module -Name PowerShellGet -Force -AllowClobber -Confirm:$false; Update-Module -Name PowerShellGet -Confirm:$false
+    $Host.ui.WriteLine();
     $pltID = [System.Environment]::OSVersion.Platform; # [Enum]::GetNames([System.PlatformID])
     $Is_Windows = $pltID -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')
     
