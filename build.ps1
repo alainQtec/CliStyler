@@ -1362,9 +1362,8 @@ Process {
     }
     Set-BuildVariables -Path $PSScriptRoot -Prefix $env:RUN_ID
     Write-EnvironmentSummary "Build started"
-    $security_protocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::SystemDefault
-    if ([Net.SecurityProtocolType].GetMember("Tls12").Count -gt 0) { $security_protocol = $security_protocol -bor [Net.SecurityProtocolType]::Tls12 }
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]$security_protocol
+    # Prevent tsl errors & othet prompts : https://devblogs.microsoft.com/powershell/when-powershellget-v1-fails-to-install-the-nuget-provider/
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12; [Net.ServicePointManager]::SecurityProtocol = "Tls, Tls11, Tls12";
     $Host.ui.WriteLine();
     Invoke-CommandWithLog { $script:DefaultParameterValues = @{
             '*-Module:Verbose'           = $false
@@ -1379,17 +1378,14 @@ Process {
     Write-Heading "Prepare package feeds"
     $Host.ui.WriteLine()
     if ($null -eq (Get-PSRepository -Name PSGallery -ErrorAction Ignore)) { Unregister-PSRepository -Name PSGallery -Verbose:$false -ErrorAction Ignore }
-    # Prevent tsl errors & othet prompts : https://devblogs.microsoft.com/powershell/when-powershellget-v1-fails-to-install-the-nuget-provider/
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12; [Net.ServicePointManager]::SecurityProtocol = "Tls, Tls11, Tls12";
     Invoke-CommandWithLog {
         Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false
-        # ForceBootstrap to latest version.
-        # ie: PowerShellGet requires NuGet provider version '2.8.5.201' or newer to interact with NuGet-based repositories.
+        # ForceBootstrap to latest version. ie: PowerShellGet requires NuGet provider version '2.8.5.201' or newer to interact with NuGet-based repositories.
     }
     $pltID = [System.Environment]::OSVersion.Platform; # [Enum]::GetNames([System.PlatformID])
     $Is_Windows = $pltID -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')
     Write-Verbose "Make sure wer'e using the latest nuget cli version ..."
-    if (!(Get-Command -Name Nuget -Type Application -ErrorAction Ignore)) {
+    if (!(Get-Command -Name Nuget -Type Application -ErrorAction Ignore) -and ![bool][int]$env:IsAC) {
         if ($Is_Windows) {
             # In most cases the NuGet provider is either located in '$env:ProgramFiles/PackageManagement/ProviderAssemblies/' or '$env:LOCALAPPDATA/PackageManagement/ProviderAssemblies/'. IE:
             $PfilesNuget = [IO.FileInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("$env:ProgramFiles/PackageManagement/ProviderAssemblies/Nuget.exe"))
