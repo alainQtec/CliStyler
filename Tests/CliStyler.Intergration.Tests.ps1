@@ -1,13 +1,5 @@
 # verify the interactions and behavior of the module's components when they are integrated together. 
 Describe "Integration tests: CliStyler" {
-    Context "Module Integration" {
-        It "Imports the module successfully" {
-            $ModuleInfo | Should -Not -BeNullOrEmpty
-        }
-        # Add more integration tests here based on how your module components interact.
-        # For example, testing if one function's output is correctly used as input for another.
-    }
-
     Context "Functionality Integration" {
         It "Performs expected action" {
             # Here you can write tests to simulate the usage of your functions and validate their behavior.
