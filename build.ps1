@@ -822,6 +822,7 @@ Begin {
             [ValidateScript({ ($_ -as 'version') -is [version] -or $_ -eq 'latest' })]
             [string]$Version = 'latest',
             [switch]$UpdateOnly,
+            [switch]$Manually,
             [switch]$Passthru
         )
         Begin {
@@ -874,6 +875,7 @@ Begin {
         Process {
             # Try Using normal Installation
             try {
+                if ($Manually) { throw [System.Exception]::New('') }
                 if ($PSCmdlet.MyInvocation.BoundParameters['UpdateOnly']) {
                     $UpdateModule.Invoke()
                 } else {
@@ -881,8 +883,8 @@ Begin {
                 }
                 $Module_Path = (Get-LocalModule -Name $moduleName).Psd1 | Split-Path -ErrorAction Stop
             } catch {
-                $VerboseMsg = 'Normal Installation Failed :' + $_.Exception.Message + "`nUsing Manual Instalation ..."
-                Write-Verbose $VerboseMsg -Verbose
+                $warningMsg = $_.Exception.Message + "Using Manual Instalation for module $moduleName..."
+                Write-Warning $warningMsg
                 # For some reason Install-Module can fail (ex: on Arch). This is a manual workaround when that happens.
                 $version_filter = if ($Version -eq 'latest') { 'IsLatestVersion' } else { "Version eq '$Version'" }
                 $url = "https://www.powershellgallery.com/api/v2/Packages?`$filter=Id eq '$moduleName' and $version_filter"
@@ -917,7 +919,7 @@ Begin {
                 Write-Host "Download $moduleName.nupkg ... " -NoNewline -ForegroundColor DarkCyan
                 Invoke-WebRequest -Uri $downloadUrl -OutFile $ModuleNupkg -Verbose:$false;
                 if ($IsWindows) { Unblock-File -Path $ModuleNupkg }
-                Expand-Archive -Path $ModuleNupkg -DestinationPath $Module_Path -Verbose:$false;
+                Expand-Archive -Path $ModuleNupkg -DestinationPath $Module_Path -Verbose:$false -Force;
                 $Items_to_CleanUp = [System.Collections.ObjectModel.Collection[System.Object]]::new()
                 @('_rels', 'package', '*Content_Types*.xml', "$ModuleNupkg", "$($moduleName.Tolower()).nuspec" ) | ForEach-Object { [void]$Items_to_CleanUp.Add((Get-Item -Path "$Module_Path/$_" -ErrorAction Ignore)) }
                 $Items_to_CleanUp = $Items_to_CleanUp | Sort-Object -Unique
@@ -1378,9 +1380,17 @@ Process {
     Write-Heading "Prepare package feeds"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     # [IO.FileInfo]::new((Get-Module PackageManagement -ErrorAction Stop).Path).Directory.Parent
-    Get-PackageProvider | Where-Object name -Like "*nuget*" | ForEach-Object { Install-PackageProvider -Name $_.Name -Force -Confirm:$false}
-    Install-Module -Name PowerShellGet -Force -AllowClobber -Confirm:$false; Update-Module -Name PowerShellGet -Confirm:$false
-    $Host.ui.WriteLine();
+    foreach ($Name in @('PackageManagement', 'PowerShellGet')) {
+        $Host.UI.WriteLine(); Install-PsGalleryModule -Name $Name -Manually;
+        Write-Verbose -Message "Importing module $moduleName ..."
+        try {
+            Get-ModulePath -Name $Name | Import-Module -Force -Verbose:$true
+            $Host.ui.WriteLine();
+        } catch [System.IO.FileLoadException] {
+            Write-Warning "$($_.Exception.Message) "
+        }
+    }
+    # Get-PackageProvider | Where-Object name -Like "*nuget*" | ForEach-Object { Install-PackageProvider -Name $_.Name -Force -Confirm:$false}
     $pltID = [System.Environment]::OSVersion.Platform; # [Enum]::GetNames([System.PlatformID])
     $Is_Windows = $pltID -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')
     
@@ -1419,9 +1429,6 @@ Process {
     }
     Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false
     $null = Import-PackageProvider -Name NuGet -Force
-    foreach ($Name in @('PackageManagement', 'PowerShellGet')) {
-        $Host.UI.WriteLine(); Resolve-Module -Name $Name -UpdateModule -Verbose:$script:DefaultParameterValues['*-Module:Verbose'] -ErrorAction Stop
-    }
     $Host.ui.WriteLine();
     if (!(Get-Command dotnet -ErrorAction Ignore) -and ![bool][int]$env:IsAC) {
         Write-Host "Resolve dependency [dotnet cli] For publish operations`n" -ForegroundColor Magenta
