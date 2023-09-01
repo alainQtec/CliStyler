@@ -1378,9 +1378,6 @@ Process {
     }
     Write-Heading "Prepare package feeds"
     $Host.ui.WriteLine()
-    # if ((Get-Command dotnet -ErrorAction Ignore) -and ([bool](Get-Variable -Name IsWindows -ErrorAction Ignore) -and !$(Get-Variable IsWindows -ValueOnly))) {
-    #     dotnet dev-certs https --trust
-    # }
     if ($null -eq (Get-PSRepository -Name PSGallery -ErrorAction Ignore)) { Unregister-PSRepository -Name PSGallery -Verbose:$false -ErrorAction Ignore }
     # Prevent tsl errors & othet prompts : https://devblogs.microsoft.com/powershell/when-powershellget-v1-fails-to-install-the-nuget-provider/
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12; [Net.ServicePointManager]::SecurityProtocol = "Tls, Tls11, Tls12";
@@ -1389,10 +1386,11 @@ Process {
         # ForceBootstrap to latest version.
         # ie: PowerShellGet requires NuGet provider version '2.8.5.201' or newer to interact with NuGet-based repositories.
     }
+    $pltID = [System.Environment]::OSVersion.Platform; # [Enum]::GetNames([System.PlatformID])
+    $Is_Windows = $pltID -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')
     Write-Verbose "Make sure wer'e using the latest nuget cli version ..."
     if (!(Get-Command -Name Nuget -Type Application -ErrorAction Ignore)) {
-        $pltID = [System.Environment]::OSVersion.Platform; # [Enum]::GetNames([System.PlatformID])
-        if ($pltID -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')) {
+        if ($Is_Windows) {
             # In most cases the NuGet provider is either located in '$env:ProgramFiles/PackageManagement/ProviderAssemblies/' or '$env:LOCALAPPDATA/PackageManagement/ProviderAssemblies/'. IE:
             $PfilesNuget = [IO.FileInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("$env:ProgramFiles/PackageManagement/ProviderAssemblies/Nuget.exe"))
             $lappdtNuget = [IO.FileInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("$env:LOCALAPPDATA/PackageManagement/ProviderAssemblies/Nuget.exe"))
@@ -1418,6 +1416,24 @@ Process {
     foreach ($Name in @('PackageManagement', 'PowerShellGet')) {
         $Host.UI.WriteLine(); Resolve-Module -Name $Name -UpdateModule -Verbose:$script:DefaultParameterValues['*-Module:Verbose'] -ErrorAction Stop
     }
+    $Host.ui.WriteLine();
+    # Config dotnet For publish operations. dotnet command version '2.0.0' or newer is required to interact with the NuGet-based repositories.
+    if (!(Get-Command dotnet -ErrorAction Ignore)) {
+        Write-Host "Resolve dependency [dotnet cli]`n" -ForegroundColor Magenta
+        [System.Environment]::SetEnvironmentVariable('DOTNET_ROOT', [IO.Path]::Combine($HOME, '.dotnet'))
+        if ($Is_Windows) {
+            # Run a separate PowerShell process because the script calls exit, so it will end the current PowerShell session.
+            &powershell -NoProfile -ExecutionPolicy unrestricted -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; &([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing 'https://dot.net/v1/dotnet-install.ps1'))) -channel LTS"
+            $env:PATH = $env:PATH + [IO.Path]::PathSeparator + "$env:DOTNET_ROOT"
+            . ([scriptblock]::Create((Invoke-RestMethod -Verbose:$false -Method Get https://api.github.com/gists/8b4ddc0302a9262cf7fc25e919227a2f).files.'Update_Session_Env.ps1'.content))
+            Update-SessionEnvironment; $Host.ui.WriteLine()
+        } else {
+            curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel LTS
+            Write-Output 'export DOTNET_ROOT=$HOME/.dotnet' >> ~/.bashrc
+            Write-Output 'export PATH=$PATH:$DOTNET_ROOT:$DOTNET_ROOT/tools' >> ~/.bashrc
+        }
+    }
+    dotnet dev-certs https --trust
     Write-Heading "Finalizing build Prerequisites and Resolving dependencies ..."
     if ($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildSystem')) -eq 'VSTS') {
         if ($Task -eq 'Deploy') {
