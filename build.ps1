@@ -1379,8 +1379,9 @@ Process {
     }
     Write-Heading "Prepare package feeds"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    # [IO.FileInfo]::new((Get-Module PackageManagement -ErrorAction Stop).Path).Directory.Parent
     foreach ($Name in @('PackageManagement', 'PowerShellGet')) {
+        # Manual install them to prevent wierd errors like:
+        # https://answers.microsoft.com/en-us/windows/forum/all/trying-to-install-program-using-powershell-and/4c3ac2b2-ebd4-4b2a-a673-e283827da143
         $Host.UI.WriteLine(); Install-PsGalleryModule -Name $Name -Manually;
         Write-Verbose -Message "Importing module $moduleName ..."
         try {
