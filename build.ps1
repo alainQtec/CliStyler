@@ -1364,7 +1364,6 @@ Process {
     Set-BuildVariables -Path $PSScriptRoot -Prefix $env:RUN_ID
     Write-EnvironmentSummary "Build started"
     # Prevent tsl errors & othet prompts : https://devblogs.microsoft.com/powershell/when-powershellget-v1-fails-to-install-the-nuget-provider/
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12; [Net.ServicePointManager]::SecurityProtocol = "Tls, Tls11, Tls12";
     $Host.ui.WriteLine();
     Invoke-CommandWithLog { $script:DefaultParameterValues = @{
             '*-Module:Verbose'           = $false
@@ -1377,7 +1376,8 @@ Process {
         }
     }
     Write-Heading "Prepare package feeds"
-    $Host.ui.WriteLine(); Set-ExecutionPolicy Bypass -Scope Process -Force; Install-PackageProvider -Name NuGet -Force -ErrorAction Stop
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $Host.ui.WriteLine(); Install-PackageProvider -Name NuGet -Force -ErrorAction Stop
     $pltID = [System.Environment]::OSVersion.Platform; # [Enum]::GetNames([System.PlatformID])
     $Is_Windows = $pltID -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')
     
