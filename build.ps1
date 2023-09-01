@@ -1450,10 +1450,8 @@ Process {
             Write-Output 'export PATH=$PATH:$DOTNET_ROOT:$DOTNET_ROOT/tools' >> ~/.zshrc
         }
     }
-    Invoke-CommandWithLog {
-        dotnet dev-certs https --trust
-        # https://learn.microsoft.com/en-us/aspnet/core/security/enforcing-ssl?&tabs=visual-studio%2Clinux-ubuntu#ssl-linux
-    }
+    #  dotnet dev-certs https --trust (I commented this out because running this on mac takes for ever!)
+    #  https://learn.microsoft.com/en-us/aspnet/core/security/enforcing-ssl?&tabs=visual-studio%2Clinux-ubuntu#ssl-linux
     Write-Heading "Finalizing build Prerequisites and Resolving dependencies ..."
     if ($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildSystem')) -eq 'VSTS') {
         if ($Task -eq 'Deploy') {
