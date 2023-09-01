@@ -495,6 +495,7 @@ Begin {
                     }
                 }
             }
+            git config --global --add safe.directory "$PSScriptRoot" # prevent "dubious ownership" errors.
             $Version = $script:localizedData.ModuleVersion
             if ($null -eq $Version) { throw [System.ArgumentNullException]::new('version', "Please make sure localizedData.ModuleVersion is not null.") }
             Write-Heading "Starting Build process. Workflow RunID: $env:RUN_ID`n"
@@ -1376,38 +1377,44 @@ Process {
         }
     }
     Write-Heading "Prepare package feeds"
-    $Host.ui.WriteLine()
-    if ($null -eq (Get-PSRepository -Name PSGallery -ErrorAction Ignore)) { Unregister-PSRepository -Name PSGallery -Verbose:$false -ErrorAction Ignore }
-    Invoke-CommandWithLog {
-        Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false
-        # ForceBootstrap to latest version. ie: PowerShellGet requires NuGet provider version '2.8.5.201' or newer to interact with NuGet-based repositories.
-    }
+    $Host.ui.WriteLine(); Set-ExecutionPolicy Bypass -Scope Process -Force; Install-PackageProvider -Name NuGet -Force -ErrorAction Stop
     $pltID = [System.Environment]::OSVersion.Platform; # [Enum]::GetNames([System.PlatformID])
     $Is_Windows = $pltID -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')
-    Write-Verbose "Make sure wer'e using the latest nuget cli version ..."
+    
     if (!(Get-Command -Name Nuget -Type Application -ErrorAction Ignore) -and ![bool][int]$env:IsAC) {
+        Write-BuildLog "Downloading the latest nuget cli ..."
+        Write-BuildLog "Force bootstrap nuget to its latest version."
         if ($Is_Windows) {
             # In most cases the NuGet provider is either located in '$env:ProgramFiles/PackageManagement/ProviderAssemblies/' or '$env:LOCALAPPDATA/PackageManagement/ProviderAssemblies/'. IE:
             $PfilesNuget = [IO.FileInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("$env:ProgramFiles/PackageManagement/ProviderAssemblies/Nuget.exe"))
             $lappdtNuget = [IO.FileInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("$env:LOCALAPPDATA/PackageManagement/ProviderAssemblies/Nuget.exe"))
+            $ps_get_Path = [IO.DirectoryInfo]::New("$HOME/AppData/Local/Microsoft/Windows/PowerShell/PowerShellGet/")
             $nuget = if ($PfilesNuget.Exists -and $lappdtNuget.Exists) { [void]$PfilesNuget.delete(); $lappdtNuget } elseif ($PfilesNuget.Exists -and !$lappdtNuget.Exists) { $PfilesNuget } else { $lappdtNuget }
             if (!$nuget.Directory.Exists) { New-Item -ItemType Directory -Path $nuget.Directory.FullName | Out-Null }
-            Write-Verbose "Downloading latest nuget cli version from dist.nuget.org ..."
+            if (!$ps_get_Path.Exists) { New-Item -ItemType Directory -Path $ps_get_Path.FullName | Out-Null }
+            Write-BuildLog "Downloading latest nuget cli version from dist.nuget.org ..."
             if (!$nuget.Exists) { Invoke-WebRequest -Uri "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" -OutFile $nuget.FullName }
-            $env:PATH = $env:PATH + ";$($nuget.Directory)"
+            Copy-Item $nuget.FullName -Destination $ps_get_Path.FullName | out-null
+            $env:PATH = $env:PATH + [IO.Path]::PathSeparator + "$($nuget.Directory)"
+            $env:PATH = $env:PATH + [IO.Path]::PathSeparator + "$($nuget.Directory)"
             . ([scriptblock]::Create((Invoke-RestMethod -Verbose:$false -Method Get https://api.github.com/gists/8b4ddc0302a9262cf7fc25e919227a2f).files.'Update_Session_Env.ps1'.content))
             Update-SessionEnvironment; $Host.ui.WriteLine()
             Invoke-CommandWithLog { Nuget update -self | Out-Null }
         }
+        Invoke-CommandWithLog {
+            Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false
+            # ie: PowerShellGet requires NuGet provider version '2.8.5.201' or newer to interact with NuGet-based repositories.
+        }
         # else: { Write-Host "TODO: Install-nuget-cli-on-linux."
         # https://www.geeksforgeeks.org/how-to-install-nuget-from-command-line-on-linux }
+    }
+    if ($null -eq (Get-PSRepository -Name PSGallery -ErrorAction Ignore)) {
+        Unregister-PSRepository -Name PSGallery -Verbose:$false -ErrorAction Ignore
     }
     if (!(Get-PackageSource -Name PSGallery -ErrorAction Ignore)) {
         Register-PSRepository -Default -InstallationPolicy Trusted
     }
-    if (Get-PackageSource -Name PSGallery -ErrorAction Ignore) {
-        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false
-    }
+    Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false
     $null = Import-PackageProvider -Name NuGet -Force
     foreach ($Name in @('PackageManagement', 'PowerShellGet')) {
         $Host.UI.WriteLine(); Resolve-Module -Name $Name -UpdateModule -Verbose:$script:DefaultParameterValues['*-Module:Verbose'] -ErrorAction Stop
