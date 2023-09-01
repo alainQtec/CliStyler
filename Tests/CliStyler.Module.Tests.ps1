@@ -1,10 +1,15 @@
-$ModuleName = (Get-Item $PSScriptRoot).Name
-$ModulePath = [IO.Path]::Combine($PSScriptRoot, "BuildOutput", $ModuleName) | Get-Item
+$ModuleName = (Get-Item "$PSScriptRoot/..").Name
+$ModulePath = Resolve-Path "$PSScriptRoot/../BuildOutput/$ModuleName" | Get-Item
 $moduleVersion = ((Get-ChildItem $ModulePath).Where({ $_.Name -as 'version' -is 'version'}).Name -as 'version[]' | Sort-Object -Descending)[0].ToString()
+
+Write-Host "[+] Testing the latest built module:" -ForegroundColor Green
+Write-Host "      ModuleName    $ModuleName"
+Write-Host "      ModulePath    $ModulePath"
+Write-Host "      Version       $moduleVersion`n"
 
 Get-Module -Name $ModuleName | Remove-Module # Make sure no versions of the module are loaded
 
-Write-Host "[+] Import the module and store the information about the module ..." -ForegroundColor Green
+Write-Host "[+] Reading module information ..." -ForegroundColor Green
 $ModuleInformation = Import-Module -Name "$ModulePath" -PassThru
 $ModuleInformation | Format-List
 

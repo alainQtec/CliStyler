@@ -1429,6 +1429,8 @@ Process {
             curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel LTS
             Write-Output 'export DOTNET_ROOT=$HOME/.dotnet' >> ~/.bashrc
             Write-Output 'export PATH=$PATH:$DOTNET_ROOT:$DOTNET_ROOT/tools' >> ~/.bashrc
+            Write-Output 'export DOTNET_ROOT=$HOME/.dotnet' >> ~/.zshrc
+            Write-Output 'export PATH=$PATH:$DOTNET_ROOT:$DOTNET_ROOT/tools' >> ~/.zshrc
         }
     }
     Invoke-CommandWithLog {
