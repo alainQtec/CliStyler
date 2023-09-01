@@ -1,11 +1,4 @@
 #!/usr/bin/env pwsh
-<#PSScriptInfo
-.VERSION 1.1
-.GUID e360f119-84c3-4f78-a4a0-271ce9bd27cb
-.AUTHOR Alain Herve
-.LICENSEURI https://github.com/alainQtec/CliStyler/blob/main/LICENSE
-.TAGS Powershell Profile
-#>
 function Write-ColorOutput {
     <#
     .SYNOPSIS

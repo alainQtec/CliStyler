@@ -4,7 +4,7 @@
     ReleaseNotes  = @"
 # Changelog`n`n
 
-* Added funtion Initialize-PsProfile used to Load/reload PowerShell $Profile
+* Added funtion Initialize-CliProfile used to Load/reload PowerShell $Profile
 * Added function Write-ColorOutput
 
 `n`n***`n`n# Install guide:`n`n
