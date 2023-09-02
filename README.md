@@ -9,12 +9,16 @@
 
 This module is designed to empower developers by providing an intuitive and powerful toolkit for configuring and customizing their command-line environments. Whether you're a seasoned developer or just getting started, CliStyler offers a range of features to enhance your CLI experience.
 
-## Features to add:
+## Features
 
-- **Customization:** Tailor your CLI environment to your preferences with easy-to-use configuration options.
-- **Crafted Controls:** Gain precise control over your terminal settings, prompt, and more.
-- **Effortless Setup:** Simplify the process of configuring your CLI environment with step-by-step guidance.
-- **Command Efficiency:** Access a collection of time-saving commands and shortcuts for common development tasks.
+Exported cmdlets:
+
+| category    | Description | Cmdlets    |
+| :---        |    :----   |          :--- |
+| **Cli Customization:**    | Change CLI environment to your preferences with easy-to-use options. | Here's this   |
+|**Cli Controls:** | Gain precise control over your terminal settings, prompt, ...   | add_cmdlet      |
+|**Cli Setup:** |  Simplify the process of configuring your CLI environment with step-by-step guidance. | add_cmdlet      |
+|**Cli Efficiency:** |  Access a collection of time-saving commands and shortcuts for common development tasks. | add_cmdlet      |
 
 ## Installation
 
