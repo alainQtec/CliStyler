@@ -826,60 +826,60 @@ Begin {
             [switch]$Passthru
         )
         Begin {
-            $Get_Install_Path = [scriptblock]::Create({
-                    param([string]$Name, [string]$ReqVersion)
+            class PsGalleryHelper {
+                static hidden [int] $ret = 0
+                PsGalleryHelper() {}
+                static [string] Get_Install_Path([string]$Name, [version]$ReqVersion) {
                     $p = [IO.DirectoryInfo][IO.Path]::Combine(
                         $(if (!(Get-Variable -Name IsWindows -ErrorAction Ignore) -or $(Get-Variable IsWindows -ValueOnly)) {
                                 $_versionTable = Get-Variable PSVersionTable -ValueOnly
                                 $module_folder = if ($_versionTable.ContainsKey('PSEdition') -and $_versionTable.PSEdition -eq 'Core') { 'PowerShell' } else { 'WindowsPowerShell' }
                                 Join-Path -Path $([System.Environment]::GetFolderPath('MyDocuments')) -ChildPath $module_folder
                             } else {
-                                Split-Path -Path $([System.Management.Automation.Platform]::SelectProductNameForDirectory('USER_MODULES')) -Parent
+                                [scriptblock]::Create('Split-Path -Path $([System.Management.Automation.Platform]::SelectProductNameForDirectory("USER_MODULES")) -Parent').Invoke()
                             }
                         ), 'Modules'
                     )
-                    if (![string]::IsNullOrWhiteSpace($ReqVersion)) {
-                        [IO.Path]::Combine($p.FullName, $Name, $ReqVersion)
+                    if (![string]::IsNullOrWhiteSpace("$ReqVersion")) {
+                        return [IO.Path]::Combine($p.FullName, $Name, "$ReqVersion")
                     } else {
-                        [IO.Path]::Combine($p.FullName, $Name)
+                        return [IO.Path]::Combine($p.FullName, $Name)
                     }
                 }
-            )
-            [int]$ret = 0; $response = $null; $downloadUrl = ''; $Module_Path = ''
-            $InstallModule = [scriptblock]::Create({
+                static [void] Install_Module([string]$Name, [System.Object]$ReqVersion) {
                     # There are issues with pester 5.4.1 syntax, so I'll keep using -SkipPublisherCheck.
                     # https://stackoverflow.com/questions/51508982/pester-sample-script-gets-be-is-not-a-valid-should-operator-on-windows-10-wo
-                    if ($Version -eq 'latest') {
-                        Install-Module -Name $moduleName -SkipPublisherCheck:$($moduleName -eq 'Pester') -Force
+                    if ("$ReqVersion" -eq 'latest') {
+                        Install-Module -Name $Name -SkipPublisherCheck:$($Name -eq 'Pester') -Force
                     } else {
-                        Install-Module -Name $moduleName -RequiredVersion $Version -SkipPublisherCheck:$($moduleName -eq 'Pester')
+                        Install-Module -Name $Name -RequiredVersion ([version]$ReqVersion) -SkipPublisherCheck:$($Name -eq 'Pester')
                     }
                 }
-            )
-            $UpdateModule = [scriptblock]::Create({
+                static [void] Update_Module([string]$Name, [System.Object]$ReqVersion) {
                     try {
-                        if ($Version -eq 'latest') {
-                            Update-Module -Name $moduleName
+                        if ($ReqVersion -eq 'latest') {
+                            Update-Module -Name $Name
                         } else {
-                            Update-Module -Name $moduleName -RequiredVersion $Version
+                            Update-Module -Name $Name -RequiredVersion [version]$ReqVersion
                         }
                     } catch {
-                        if ($ret -lt 1 -and $_.ErrorRecord.Exception.Message -eq "Module '$moduleName' was not installed by using Install-Module, so it cannot be updated.") {
-                            Get-Module $moduleName | Remove-Module -Force; $ret++
-                            $UpdateModule.Invoke()
+                        if ([PsGalleryHelper]::ret -lt 1 -and $_.ErrorRecord.Exception.Message -eq "Module '$Name' was not installed by using Install-Module, so it cannot be updated.") {
+                            Get-Module $Name | Remove-Module -Force; [PsGalleryHelper]::ret++
+                            [PsGalleryHelper]::Update_Module($Name, $ReqVersion)
                         }
                     }
                 }
-            )
+            }
+            $response = $null; $downloadUrl = ''; $Module_Path = ''
         }
         Process {
             # Try Using normal Installation
             try {
                 if ($Manually) { throw [System.Exception]::New('') }
                 if ($PSCmdlet.MyInvocation.BoundParameters['UpdateOnly']) {
-                    $UpdateModule.Invoke()
+                    [PsGalleryHelper]::Update_Module($moduleName, $Version);
                 } else {
-                    $InstallModule.Invoke()
+                    [PsGalleryHelper]::Install_Module($moduleName, $Version);
                 }
                 $Module_Path = (Get-LocalModule -Name $moduleName).Psd1 | Split-Path -ErrorAction Stop
             } catch {
@@ -903,11 +903,12 @@ Begin {
                     [ValidateNotNullOrEmpty()][string]$downloadUrl = $response.content.src
                     [ValidateNotNullOrEmpty()][string]$moduleName = $response.properties.Id
                     [ValidateNotNullOrEmpty()][string]$Version = $response.properties.Version
-                    $Module_Path = $Get_Install_Path.Invoke($moduleName, $Version)
+                    
+                    $Module_Path = [PsGalleryHelper]::Get_Install_Path($moduleName, $Version)
                 } catch {
                     $Error_params = @{
                         ExceptionName    = 'System.InvalidOperationException'
-                        ExceptionMessage = "Failed to find PsGallery release for '$moduleName' version '$Version'. Url used: '$url'. $($_.Exception.Message)"
+                        ExceptionMessage = "Failed to find PsGallery release for '$moduleName' version '$Version'. Url used: `"$url`". $($_.Exception.Message)"
                         ErrorId          = 'RestMethod_Failed'
                         CallerPSCmdlet   = $PSCmdlet
                         ErrorCategory    = 'OperationStopped'
@@ -916,7 +917,7 @@ Begin {
                 }
                 if (!(Test-Path -Path $Module_Path -PathType Container -ErrorAction Ignore)) { New-Directory -Path $Module_Path }
                 $ModuleNupkg = [IO.Path]::Combine($Module_Path, "$moduleName.nupkg.zip")
-                Write-Host "Download $moduleName.nupkg ... " -NoNewline -ForegroundColor DarkCyan
+                Write-Host "Download $moduleName.nupkg ... " -ForegroundColor DarkCyan
                 Invoke-WebRequest -Uri $downloadUrl -OutFile $ModuleNupkg -Verbose:$false;
                 if ($IsWindows) { Unblock-File -Path $ModuleNupkg }
                 Expand-Archive -Path $ModuleNupkg -DestinationPath $Module_Path -Verbose:$false -Force;
@@ -953,12 +954,17 @@ Begin {
                     }
                 }
             } else {
-                $url = "https://www.powershellgallery.com/packages/$Name/?dummy=$(Get-Random)"; $request = [System.Net.WebRequest]::Create($url)
-                # U can also use api: [version]$Version = (Invoke-RestMethod -Uri "https://www.powershellgallery.com/api/v2/Packages?`$filter=Id eq '$PackageName' and IsLatestVersion" -Method Get -Verbose:$false).properties.Version
+                $request = [System.Net.WebRequest]::Create("https://www.powershellgallery.com/api/v2/Packages?`$filter=Id%20eq%20%27$PackageName%27%20and%20IsLatestVersion");
                 $latest_Version = [version]::new(); $request.AllowAutoRedirect = $false
                 try {
-                    $response = $request.GetResponse()
-                    $latest_Version = $response.GetResponseHeader("Location").Split("/")[-1] -as [Version]
+                    $response = $request.GetResponse(); $detectEncodingFromByteOrderMarks = $true;
+                    $responseIsXml = $response.ContentType.Split(';')[0].EndsWith('xml')
+                    if (!$responseIsXml) {
+                        throw "ProtocolException (413). The remote server returned an unexpected response type!"
+                    }
+                    $streamReader = [System.IO.StreamReader]::new($response.GetResponseStream(), $detectEncodingFromByteOrderMarks);
+                    $apiXmlOutput = $streamReader.ReadToEnd(); $streamReader.Close();
+                    $latest_Version = $apiXmlOutput.Split("`n")[0].Split('/>').Where({ $_.StartsWith("Packages(Id='$PackageName'" ) })[0].split("'")[-2] -as [version]
                     $response.Close(); $response.Dispose()
                 } catch [System.Net.WebException], [System.Net.Http.HttpRequestException], [System.Net.Sockets.SocketException] {
                     $Error_params = @{
@@ -1334,7 +1340,7 @@ Begin {
             Body        = (ConvertTo-Json $releaseData -Compress)
         }
         # Prevent tsl errors
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12; [Net.ServicePointManager]::SecurityProtocol = "Tls, Tls11, Tls12"
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         $result = Invoke-RestMethod @releaseParams
         $uploadUri = $result | Select-Object -ExpandProperty upload_url
         $uploadUri = $uploadUri -creplace '\{\?name,label\}'
@@ -1422,12 +1428,10 @@ Process {
         # else: { Write-Host "TODO: Install-nuget-cli-on-linux."
         # https://www.geeksforgeeks.org/how-to-install-nuget-from-command-line-on-linux }
     }
-    if ($null -eq (Get-PSRepository -Name PSGallery -ErrorAction Ignore)) {
-        Unregister-PSRepository -Name PSGallery -Verbose:$false -ErrorAction Ignore
+    if (![bool](Get-PackageSource -Name PSGallery -ErrorAction Ignore)) {
+        Register-PackageSource -Name PSGallery -Location https://www.powershellgallery.com/api/v2 -ProviderName PowerShellGet -Trusted
     }
-    if (!(Get-PackageSource -Name PSGallery -ErrorAction Ignore)) {
-        Register-PSRepository -Default -InstallationPolicy Trusted
-    }
+    Register-PSRepository -Default -InstallationPolicy Trusted
     Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false
     $null = Import-PackageProvider -Name NuGet -Force
     $Host.ui.WriteLine();
