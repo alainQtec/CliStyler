@@ -605,11 +605,12 @@ if ($PrivateModules.Count -gt 0) {
     }
 }
 # Dot source the files
-foreach ($Import in ($Public, $Private)) {
+$fns = ($Public, $Private).fullname -as [IO.FileInfo[]]
+foreach ($fn in $fns) {
     Try {
-        . $Import.FullName
+        . $fn.FullName
     } Catch {
-        Write-Warning "Failed to import function $($Import.BaseName): $_"
+        Write-Warning "Failed to import function $($fn.BaseName): $_"
         $host.UI.WriteErrorLine($_)
     }
 }

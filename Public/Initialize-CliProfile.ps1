@@ -41,18 +41,11 @@ function Initialize-CliProfile {
         Write-Debug "$fxn Starting ..."
         $dbp = $DebugPreference;
         if ($dev) { $DebugPreference = 'Continue' }
-        [CliStyler]::Initialize()
-        #region    Import-Modules_and_Dlls
-        # GAC LOAD Assemblies ...
-        #endregion Import-Modules_and_Dlls
-
-        #region    variables
-        Write-Debug "$fxn Setting Variables ..."
         
     }
 
     Process {
-        
+        [CliStyler]::Initialize()
     }
 
     end {
