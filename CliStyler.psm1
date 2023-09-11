@@ -368,7 +368,7 @@ class CliStyler {
             }
         }
         # Prevent tsl errors
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12; [Net.ServicePointManager]::SecurityProtocol = "Tls, Tls11, Tls12"
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         Write-Host "[0/3] Downloading WinGet and its dependencies ..." -ForegroundColor Green
         Invoke-WebRequest -Uri https://aka.ms/getwinget -OutFile $wngt
         Invoke-WebRequest -Uri https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx -OutFile $deps[0]
