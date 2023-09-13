@@ -935,6 +935,7 @@ Begin {
         [CmdletBinding()][OutputType([version])]
         param (
             [Parameter(Position = 0, Mandatory = $true)]
+            [ValidateNotNullOrEmpty()]
             [string]$Name,
 
             [Parameter(Position = 1, Mandatory = $false)]
@@ -955,11 +956,11 @@ Begin {
                         }
                     }
                 } else {
-                    $response = Invoke-RestMethod -Uri "https://www.powershellgallery.com/api/v2/Packages?`$filter=Id%20eq%20%27$PackageName%27%20and%20IsLatestVersion" -Method Get -Verbose:$false
+                    $response = Invoke-RestMethod -Uri "https://www.powershellgallery.com/api/v2/Packages?`$filter=Id%20eq%20%27$Name%27%20and%20IsLatestVersion" -Method Get -Verbose:$false
                         if ($null -eq $response) {
                             $Error_params = @{
                             ExceptionName    = 'System.InvalidOperationException'
-                            ExceptionMessage = "Module '$PackageName' was not found in PSGallery repository."
+                            ExceptionMessage = "Module '$Name' was not found in PSGallery repository."
                             ErrorId          = 'CouldNotFindModule'
                             CallerPSCmdlet   = $PSCmdlet
                             ErrorCategory    = 'InvalidResult'
@@ -981,7 +982,7 @@ Begin {
             } catch {
                 $Error_params = @{
                     ExceptionName    = $_.Exception.GetType().FullName
-                    ExceptionMessage = "PackageName '$PackageName' was Not Found. " + $_.Exception.Message
+                    ExceptionMessage = "PackageName '$Name' was Not Found. " + $_.Exception.Message
                     ErrorId          = 'UnexpectedError'
                     CallerPSCmdlet   = $PSCmdlet
                     ErrorCategory    = 'InvalidOperation'
@@ -1005,7 +1006,7 @@ Begin {
         )
         process {
             foreach ($moduleName in $Names) {
-                Write-Host "`nResolve dependency Module [$moduleName]" -ForegroundColor Magenta
+                Write-Host "`n##[Info] Resolve dependency Module [$moduleName]" -ForegroundColor Magenta
                 $Local_ModuleVersion = Get-LatestModuleVersion -Name $moduleName -Source LocalMachine
                 $Latest_ModuleVerion = Get-LatestModuleVersion -Name $moduleName -Source PsGallery
                 if (!$Latest_ModuleVerion -or $Latest_ModuleVerion -eq ([version]::New())) {
@@ -1368,22 +1369,19 @@ Begin {
             [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         }
         process {
-            Write-Verbose "Checking PackageProviders ..."
-            if (!(Get-PackageProvider).Name.Contains("Nuget")) {
+            Write-Verbose "ForceBootstrap Nuget PackageProvider. ie: PowerShellGet requires NuGet provider version '2.8.5.201' or newer."
+            if ((Get-PackageProvider).Name -notcontains "Nuget") {
                 Invoke-CommandWithLog {
-                    Install-PackageProvider -Name NuGet -Force
-                    # https://answers.microsoft.com/en-us/windows/forum/windows_7-performance/trying-to-install-program-using-powershell-and/4c3ac2b2-ebd4-4b2a-a673-e283827da143
+                    Find-PackageProvider -Name 'Nuget' -ForceBootstrap -IncludeDependencies
+                }
+            } else {
+                Invoke-CommandWithLog {
+                    Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false
                 }
             }
-            Write-Verbose "ForceBootstrap Nuget ..."
-            Invoke-CommandWithLog {
-                Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false
-                # ie: PowerShellGet requires NuGet provider version '2.8.5.201' or newer to interact with NuGet-based repositories.
-            }
-            # Nuget-Cli :
+            Write-Verbose "ForceBootstrap nuget-cli ..."
             if (!(Get-Command -Name Nuget -Type Application -ErrorAction Ignore) -and ![bool][int]$env:IsAC) {
-                Write-Verbose "Downloading the latest nuget cli ..."
-                Write-Verbose "Force bootstrap nuget to its latest version."
+                Write-Verbose "Update nuget-cli to its latest version."
                 if ([System.Environment]::OSVersion.Platform -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')) {
                     # In most cases the NuGet provider is either located in '$env:ProgramFiles/PackageManagement/ProviderAssemblies/' or '$env:LOCALAPPDATA/PackageManagement/ProviderAssemblies/'. IE:
                     $PfilesNuget = [IO.FileInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("$env:ProgramFiles/PackageManagement/ProviderAssemblies/Nuget.exe"))
@@ -1447,10 +1445,10 @@ Process {
     }
     Write-Heading "Prepare package feeds"
     Resolve-PackageProviders; $Host.ui.WriteLine(); $null = Import-PackageProvider -Name NuGet -Force
-    foreach ($Name in @('PackageManagement', 'PowerShellGet')) {
+    foreach ($Name in @('PackageManagement', 'PowerShellGet', 'NuGet')) {
         # Manual install them to prevent wierd errors like:
         # https://answers.microsoft.com/en-us/windows/forum/all/trying-to-install-program-using-powershell-and/4c3ac2b2-ebd4-4b2a-a673-e283827da143
-        Write-Host "`nInstall dependency Module [$Name]" -ForegroundColor Magenta
+        Write-Host "`n##[Info] Install build dependency Module [$Name]" -ForegroundColor Magenta
         Install-PsGalleryModule -Name $Name; $Host.UI.WriteLine()
         Write-Verbose -Message "Importing module $moduleName ..."
         try {
@@ -1461,7 +1459,7 @@ Process {
         }
     }
     if (!(Get-Command dotnet -ErrorAction Ignore) -and ![bool][int]$env:IsAC) {
-        Write-Host "Resolve dependency [dotnet cli] For publish operations`n" -ForegroundColor Magenta
+        Write-Host "##[Info] Resolve publish dependency [the dotnet sdk]`n" -ForegroundColor Magenta
         Invoke-CommandWithLog {
             [System.Environment]::SetEnvironmentVariable('DOTNET_ROOT', [IO.Path]::Combine($HOME, '.dotnet'))
             # dotnet command version '2.0.0' or newer is required to interact with the NuGet-based repositories.
