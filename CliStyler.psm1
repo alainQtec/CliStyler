@@ -168,7 +168,7 @@ class CliStyler {
     static hidden [bool] $CurrExitCode
     # The default launch ascii : alainQtec. but TODO: add a way to load it from a config instead of hardcoding it.
     static [string] $Default_Term_Ascii = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('bSUBJQElASVuJW0lbiUgACAAIAAgACAAIAAgAG0lASUBJQElbiVtJW4lCgADJW0lASVuJQMlAyUDJSAAIAAgAG0lbiUgACAAAyVtJQElbiUDJW8lcCVuJQoAAyUDJSAAAyUDJQMlbSUBJQElbiVtJW4lASVuJQMlAyUgAAMlAyVuJW0lbSUBJQElbiUBJQElbiUKAAMlcCUBJW8lAyUDJQMlbSUgAAMlfAADJW0lbiVuJQMlIAADJQMlAyUDJXwAbSVuJQMlbSUBJW8lCgADJW0lASVuJQMlAyVwJXAlbyVwJW4lAyUDJQMlAyVwJQElbyUDJQMlcCVuJQMlASUrJXAlASVuJQoAcCVvJSAAcCVvJXAlASVvJQElASVvJW8lbyVwJW8lASUBJW4lcCUBJQElbyUBJQElbyUBJQElbyUKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABwJW8lCgAiAFEAdQBpAGMAawAgAHAAcgBvAGQAdQBjAHQAaQB2AGUAIAB0AGUAYwBoACIA'));
-    static [string[]] $Default_Dependencies = @('Terminal-Icons', 'PSReadline', 'Pester', 'Posh-git', 'PSWinGlue', 'PowerShellForGitHub', 'PowerType');
+    static [string[]] $Default_Dependencies = @('Terminal-Icons', 'PSReadline', 'Pester', 'Posh-git', 'PSWinGlue', 'PowerShellForGitHub');
     static hidden [string] $WINDOWS_TERMINAL_PATH = [IO.Path]::Combine($env:LocalAppdata, 'Packages', 'Microsoft.WindowsTerminal_8wekyb3d8bbwe', 'LocalState', 'settings.json');
     static hidden [PSCustomObject] $TERMINAL_Settings
 
@@ -240,9 +240,6 @@ class CliStyler {
         [CliStyler]::AddColorScheme()
         [CliStyler]::InstallNerdFont()
         [CliStyler]::InstallOhMyPosh()
-
-        # PowerType
-        Enable-PowerType
         Set-PSReadLineOption -PredictionSource HistoryAndPlugin -PredictionViewStyle ListView # Optional
         # WinFetch
         Install-Script -Name winfetch -AcceptLicense
@@ -318,13 +315,12 @@ class CliStyler {
     static hidden [void] InstallNerdFont() {
         Write-Verbose "[CliStyler] Installing Nerd Font (FiraCode) ..."
         #Requires -Version 3.0
-        $fczip = [IO.Path]::Combine($env:temp, 'FiraCode.zip')
-        if (!(Test-Path -Path $fczip) -and ((Get-FileHash $fczip -Algorithm MD5).Hash -eq '8127EF3F014A934CE8C7D87A24EEEA62')) {
-            Invoke-WebRequest -Uri https://github.com/ryanoasis/nerd-fonts/releases/download/v3.0.2/FiraCode.zip -OutFile $fczip
+        $fczip = [IO.FileInfo][IO.Path]::Combine($env:temp, 'FiraCode.zip')
+        if (!$fczip.Exists) {
+            Invoke-WebRequest -Uri https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip -OutFile $fczip.FullName
         }
-        Remove-Item -Path $fczip -Recurse
-        Expand-Archive -Path $fczip -DestinationPath ([IO.Path]::Combine($env:temp, 'FiraCodeExpand'))
-
+        Expand-Archive -Path $fczip.FullName -DestinationPath ([IO.Path]::Combine($env:temp, 'FiraCodeExpand'))
+        Remove-Item -Path $fczip.FullName -Recurse
         # TODO: #13 Check error handling
         Import-Module -Name PSWinGlue -WarningAction silentlyContinue
 
@@ -591,6 +587,7 @@ class CliStyler {
     }
 }
 #endregion Classes
+
 $Private = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -Filter "*.ps1" -ErrorAction SilentlyContinue
 $Public = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Public')) -Filter "*.ps1" -ErrorAction SilentlyContinue
 # Load dependencies
