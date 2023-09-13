@@ -724,7 +724,7 @@ Begin {
                     [string[]]$_Module_Paths = [System.Environment]::GetEnvironmentVariable('PSModulePath').Split([IO.Path]::PathSeparator)
                     if ([string]::IsNullOrWhiteSpace($scope)) { return $_Module_Paths }
                     [ValidateSet('CurrentUser', 'LocalMachine')][string]$scope = $scope
-                    if (!(Get-Variable -Name IsWindows -ErrorAction Ignore) -or $(Get-Variable IsWindows -ValueOnly)) {
+                    if ([System.Environment]::OSVersion.Platform -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')) {
                         $psv = Get-Variable PSVersionTable -ValueOnly
                         $allUsers_path = Join-Path -Path $env:ProgramFiles -ChildPath $(if ($psv.ContainsKey('PSEdition') -and $psv.PSEdition -eq 'Core') { 'PowerShell' } else { 'WindowsPowerShell' })
                         if ($Scope -eq 'CurrentUser') { $_Module_Paths = $_Module_Paths.Where({ $_ -notlike "*$($allUsers_path | Split-Path)*" -and $_ -notlike "*$env:SystemRoot*" }) }
@@ -801,14 +801,9 @@ Begin {
         #     Like install-Module but it manually installs the module when the normal way fails.
         #  .DESCRIPTION
         #     Installs a PowerShell module even on systems that don't have a working PowerShellGet.
-        #     But Sometimes you just need to apply a quick fix like this one:
-        #
-        #     Unregister-PSRepository -Name PSGallery
-        #     Register-PSRepository -Default
-        #     if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {
-        #         Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-        #     }
-        #
+        #     But Sometimes you just get stuck trying to solve issues like:
+        #     + https://stackoverflow.com/questions/51406685/powershell-how-do-i-install-the-nuget-provider-for-powershell-on-a-unconnected
+        #     + https://stackoverflow.com/questions/66210483/install-module-not-available-not-recognized-as-a-name-of-a-cmdlet
         #     When all that fails, then this function comes in handy.
         [CmdletBinding()]
         [OutputType([IO.FileInfo])]
@@ -831,10 +826,15 @@ Begin {
                 PsGalleryHelper() {}
                 static [string] Get_Install_Path([string]$Name, [version]$ReqVersion) {
                     $p = [IO.DirectoryInfo][IO.Path]::Combine(
-                        $(if (!(Get-Variable -Name IsWindows -ErrorAction Ignore) -or $(Get-Variable IsWindows -ValueOnly)) {
+                        $(if ([System.Environment]::OSVersion.Platform -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')) {
                                 $_versionTable = Get-Variable PSVersionTable -ValueOnly
                                 $module_folder = if ($_versionTable.ContainsKey('PSEdition') -and $_versionTable.PSEdition -eq 'Core') { 'PowerShell' } else { 'WindowsPowerShell' }
-                                Join-Path -Path $([System.Environment]::GetFolderPath('MyDocuments')) -ChildPath $module_folder
+                                $mydocs_folder = [System.Environment]::GetFolderPath('MyDocuments')
+                                if ([IO.Path]::IsPathRooted($mydocs_folder)) {
+                                    [IO.Path]::Combine($mydocs_folder, $module_folder)
+                                } else {
+                                    [IO.Path]::Combine(([IO.DirectoryInfo][System.Environment]::GetFolderPath('MyMusic')).Parent.FullName, 'Documents', $module_folder)
+                                }
                             } else {
                                 [scriptblock]::Create('Split-Path -Path $([System.Management.Automation.Platform]::SelectProductNameForDirectory("USER_MODULES")) -Parent').Invoke()
                             }
@@ -869,64 +869,64 @@ Begin {
                         }
                     }
                 }
+                static [void] Manual_Install_Module([string]$moduleName, [System.Object]$Version) {
+                    $response = $null; $downloadUrl = ''; $Module_Path = ''
+                    # For some reason Install-Module can fail (ex: on Arch). This is a manual workaround when that happens.
+                    $version_filter = if ("$Version" -eq 'latest') { 'IsLatestVersion' } else { "Version eq '$Version'" }
+                    $url = "https://www.powershellgallery.com/api/v2/Packages?`$filter=Id%20eq%20%27$moduleName%27%20and%20$version_filter"
+                    $response = Invoke-RestMethod -Uri $url -Method Get -Verbose:$false
+                    if ($null -eq $response) {
+                        throw [System.InvalidOperationException]::New("Module '$moduleName' was not found in PSGallery repository.");
+                    }
+                    [ValidateNotNullOrEmpty()][string]$downloadUrl = $response.content.src
+                    [ValidateNotNullOrEmpty()][string]$moduleName = $response.properties.Id
+                    [ValidateNotNullOrEmpty()][version]$Version = $response.properties.Version
+                    
+                    $Module_Path = [PsGalleryHelper]::Get_Install_Path($moduleName, $Version)
+
+                    if (!(Test-Path -Path $Module_Path -PathType Container -ErrorAction Ignore)) { New-Directory -Path $Module_Path }
+                    $ModuleNupkg = [IO.Path]::Combine($Module_Path, "$moduleName.nupkg.zip")
+                    Write-Host "Download & Install $moduleName.nupkg ... " -ForegroundColor DarkCyan
+                    Invoke-WebRequest -Uri $downloadUrl -OutFile $ModuleNupkg -Verbose:$false;
+                    if ([System.Environment]::OSVersion.Platform -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')) { Unblock-File -Path $ModuleNupkg }
+                    Expand-Archive -Path $ModuleNupkg -DestinationPath $Module_Path -Verbose:$false -Force;
+                    $Items_to_CleanUp = [System.Collections.ObjectModel.Collection[System.Object]]::new()
+                    @('_rels', 'package', '*Content_Types*.xml', "$ModuleNupkg", "$($moduleName.Tolower()).nuspec" ) | ForEach-Object { [void]$Items_to_CleanUp.Add((Get-Item -Path "$Module_Path/$_" -ErrorAction Ignore)) }
+                    $Items_to_CleanUp = $Items_to_CleanUp | Sort-Object -Unique
+                    foreach ($Item in $Items_to_CleanUp) {
+                        [bool]$Recurse = $Item.Attributes -eq [System.IO.FileAttributes]::Directory
+                        Remove-Item -LiteralPath $Item.FullName -Recurse:$Recurse -Force -ErrorAction SilentlyContinue
+                    }
+                }
             }
-            $response = $null; $downloadUrl = ''; $Module_Path = ''
         }
         Process {
-            # Try Using normal Installation
             try {
-                if ($Manually) { throw [System.Exception]::New('') }
-                if ($PSCmdlet.MyInvocation.BoundParameters['UpdateOnly']) {
+                if ($Manually) {
+                    [PsGalleryHelper]::Manual_Install_Module($moduleName, $Version)
+                } elseif ($PSCmdlet.MyInvocation.BoundParameters['UpdateOnly']) {
                     [PsGalleryHelper]::Update_Module($moduleName, $Version);
                 } else {
                     [PsGalleryHelper]::Install_Module($moduleName, $Version);
                 }
                 $Module_Path = (Get-LocalModule -Name $moduleName).Psd1 | Split-Path -ErrorAction Stop
             } catch {
+                $Error_params = @{
+                    ExceptionName    = 'System.InvalidOperationException'
+                    ExceptionMessage = "Failed to install module '$moduleName' version '$Version'. $($_.Exception.Message)"
+                    ErrorId          = 'InvalidOperation'
+                    CallerPSCmdlet   = $PSCmdlet
+                    ErrorCategory    = 'InvalidOperation'
+                }
                 $warningMsg = $_.Exception.Message + "Using Manual Instalation for module $moduleName..."
                 Write-Warning $warningMsg
-                # For some reason Install-Module can fail (ex: on Arch). This is a manual workaround when that happens.
-                $version_filter = if ($Version -eq 'latest') { 'IsLatestVersion' } else { "Version eq '$Version'" }
-                $url = "https://www.powershellgallery.com/api/v2/Packages?`$filter=Id eq '$moduleName' and $version_filter"
-                try {
-                    $response = Invoke-RestMethod -Uri $url -Method Get -Verbose:$false
-                    if ($null -eq $response) {
-                        $Error_params = @{
-                            ExceptionName    = 'System.InvalidOperationException'
-                            ExceptionMessage = "Module '$moduleName' was not found in PSGallery repository."
-                            ErrorId          = 'CouldNotFindModule'
-                            CallerPSCmdlet   = $PSCmdlet
-                            ErrorCategory    = 'InvalidResult'
-                        }
-                        Write-TerminatingError @Error_params
-                    }
-                    [ValidateNotNullOrEmpty()][string]$downloadUrl = $response.content.src
-                    [ValidateNotNullOrEmpty()][string]$moduleName = $response.properties.Id
-                    [ValidateNotNullOrEmpty()][string]$Version = $response.properties.Version
-                    
-                    $Module_Path = [PsGalleryHelper]::Get_Install_Path($moduleName, $Version)
-                } catch {
-                    $Error_params = @{
-                        ExceptionName    = 'System.InvalidOperationException'
-                        ExceptionMessage = "Failed to find PsGallery release for '$moduleName' version '$Version'. Url used: `"$url`". $($_.Exception.Message)"
-                        ErrorId          = 'RestMethod_Failed'
-                        CallerPSCmdlet   = $PSCmdlet
-                        ErrorCategory    = 'OperationStopped'
-                    }
-                    Write-TerminatingError @Error_params
+                if (!$Manually) {
+                    [PsGalleryHelper]::Manual_Install_Module($moduleName, $Version)
                 }
-                if (!(Test-Path -Path $Module_Path -PathType Container -ErrorAction Ignore)) { New-Directory -Path $Module_Path }
-                $ModuleNupkg = [IO.Path]::Combine($Module_Path, "$moduleName.nupkg.zip")
-                Write-Host "Download $moduleName.nupkg ... " -ForegroundColor DarkCyan
-                Invoke-WebRequest -Uri $downloadUrl -OutFile $ModuleNupkg -Verbose:$false;
-                if ($IsWindows) { Unblock-File -Path $ModuleNupkg }
-                Expand-Archive -Path $ModuleNupkg -DestinationPath $Module_Path -Verbose:$false -Force;
-                $Items_to_CleanUp = [System.Collections.ObjectModel.Collection[System.Object]]::new()
-                @('_rels', 'package', '*Content_Types*.xml', "$ModuleNupkg", "$($moduleName.Tolower()).nuspec" ) | ForEach-Object { [void]$Items_to_CleanUp.Add((Get-Item -Path "$Module_Path/$_" -ErrorAction Ignore)) }
-                $Items_to_CleanUp = $Items_to_CleanUp | Sort-Object -Unique
-                foreach ($Item in $Items_to_CleanUp) {
-                    [bool]$Recurse = $Item.Attributes -eq [System.IO.FileAttributes]::Directory
-                    Remove-Item -LiteralPath $Item.FullName -Recurse:$Recurse -Force -ErrorAction SilentlyContinue
+                if ($?) {
+                    Write-Error "Failed to install module '$moduleName' version '$Version'. $($_.Exception.Message)"
+                }else {
+                    Write-TerminatingError @Error_params
                 }
             }
         }
@@ -946,45 +946,47 @@ Begin {
             $latest_Version = [version]::New()
         }
         process {
-            if ($Source -eq 'LocalMachine') {
-                $_Local_Module = Get-LocalModule -Name $Name
-                if ($null -ne $_Local_Module) {
-                    if ((Test-Path -Path $_Local_Module.Psd1 -PathType Leaf -ErrorAction Ignore)) {
-                        $latest_Version = $_Local_Module.Version
+            try {
+                if ($Source -eq 'LocalMachine') {
+                    $_Local_Module = Get-LocalModule -Name $Name
+                    if ($null -ne $_Local_Module) {
+                        if ((Test-Path -Path $_Local_Module.Psd1 -PathType Leaf -ErrorAction Ignore)) {
+                            $latest_Version = $_Local_Module.Version
+                        }
                     }
+                } else {
+                    $response = Invoke-RestMethod -Uri "https://www.powershellgallery.com/api/v2/Packages?`$filter=Id%20eq%20%27$PackageName%27%20and%20IsLatestVersion" -Method Get -Verbose:$false
+                        if ($null -eq $response) {
+                            $Error_params = @{
+                            ExceptionName    = 'System.InvalidOperationException'
+                            ExceptionMessage = "Module '$PackageName' was not found in PSGallery repository."
+                            ErrorId          = 'CouldNotFindModule'
+                            CallerPSCmdlet   = $PSCmdlet
+                            ErrorCategory    = 'InvalidResult'
+                        }
+                        Write-TerminatingError @Error_params
+                    }
+                    Write-Verbose "[Get-LatestModuleVersion] Found package : '$($response.properties.Id)' version '$($response.properties.Version)' by $($response.author.name)"
+                    [ValidateNotNullOrEmpty()][version]$latest_Version = $response.properties.Version -as [version]
+                }        
+            } catch [System.Net.WebException], [System.Net.Http.HttpRequestException], [System.Net.Sockets.SocketException] {
+                $Error_params = @{
+                    ExceptionName    = $_.Exception.GetType().FullName
+                    ExceptionMessage = "No Internet! " + $_.Exception.Message
+                    ErrorId          = 'WebException'
+                    CallerPSCmdlet   = $PSCmdlet
+                    ErrorCategory    = 'ConnectionError'
                 }
-            } else {
-                $request = [System.Net.WebRequest]::Create("https://www.powershellgallery.com/api/v2/Packages?`$filter=Id%20eq%20%27$PackageName%27%20and%20IsLatestVersion");
-                $latest_Version = [version]::new(); $request.AllowAutoRedirect = $false
-                try {
-                    $response = $request.GetResponse(); $detectEncodingFromByteOrderMarks = $true;
-                    $responseIsXml = $response.ContentType.Split(';')[0].EndsWith('xml')
-                    if (!$responseIsXml) {
-                        throw "ProtocolException (413). The remote server returned an unexpected response type!"
-                    }
-                    $streamReader = [System.IO.StreamReader]::new($response.GetResponseStream(), $detectEncodingFromByteOrderMarks);
-                    $apiXmlOutput = $streamReader.ReadToEnd(); $streamReader.Close();
-                    $latest_Version = $apiXmlOutput.Split("`n")[0].Split('/>').Where({ $_.StartsWith("Packages(Id='$PackageName'" ) })[0].split("'")[-2] -as [version]
-                    $response.Close(); $response.Dispose()
-                } catch [System.Net.WebException], [System.Net.Http.HttpRequestException], [System.Net.Sockets.SocketException] {
-                    $Error_params = @{
-                        ExceptionName    = $_.Exception.GetType().FullName
-                        ExceptionMessage = "No Internet! " + $_.Exception.Message
-                        ErrorId          = 'WebException'
-                        CallerPSCmdlet   = $PSCmdlet
-                        ErrorCategory    = 'ConnectionError'
-                    }
-                    Write-TerminatingError @Error_params
-                } catch {
-                    $Error_params = @{
-                        ExceptionName    = $_.Exception.GetType().FullName
-                        ExceptionMessage = "PackageName '$PackageName' was Not Found. " + $_.Exception.Message
-                        ErrorId          = 'UnexpectedError'
-                        CallerPSCmdlet   = $PSCmdlet
-                        ErrorCategory    = 'OperationStopped'
-                    }
-                    Write-TerminatingError @Error_params
+                Write-TerminatingError @Error_params
+            } catch {
+                $Error_params = @{
+                    ExceptionName    = $_.Exception.GetType().FullName
+                    ExceptionMessage = "PackageName '$PackageName' was Not Found. " + $_.Exception.Message
+                    ErrorId          = 'UnexpectedError'
+                    CallerPSCmdlet   = $PSCmdlet
+                    ErrorCategory    = 'InvalidOperation'
                 }
+                Write-TerminatingError @Error_params
             }
         }
         end {
@@ -1008,11 +1010,11 @@ Begin {
                 $Latest_ModuleVerion = Get-LatestModuleVersion -Name $moduleName -Source PsGallery
                 if (!$Latest_ModuleVerion -or $Latest_ModuleVerion -eq ([version]::New())) {
                     $Error_params = @{
-                        ExceptionName    = 'System.Data.OperationAbortedException'
+                        ExceptionName    = 'System.InvalidOperationException'
                         ExceptionMessage = "Resolve-Module: Get-LatestModuleVersion: Failed to find latest module version for '$moduleName'."
                         ErrorId          = 'CouldNotFindModule'
                         CallerPSCmdlet   = $PSCmdlet
-                        ErrorCategory    = 'OperationStoped'
+                        ErrorCategory    = 'InvalidOperation'
                     }
                     Write-TerminatingError @Error_params
                 }
@@ -1186,7 +1188,7 @@ Begin {
             $(if ($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName'))) { "Project : $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName'))" })
             $(if ($State) { "State   : $State" })
             "Engine  : PowerShell $($PSVersionTable.PSVersion.ToString())"
-            "Host OS : $(if($PSVersionTable.PSVersion.Major -le 5 -or $IsWindows){"Windows"}elseif($IsLinux){"Linux"}elseif($IsMacOS){"macOS"}else{"[UNKNOWN]"})"
+            "Host OS : $(if($PSVersionTable.PSVersion.Major -le 5 -or $([System.Environment]::OSVersion.Platform -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE'))){"Windows"}elseif($IsLinux){"Linux"}elseif($IsMacOS){"macOS"}else{"[UNKNOWN]"})"
             "PWD     : $PWD"
             ''
         ) | Write-Host
@@ -1359,6 +1361,66 @@ Begin {
         }
         $result = Invoke-RestMethod @uploadParams
     }
+    function Resolve-PackageProviders {
+        [CmdletBinding()]
+        param ()
+        begin {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        }
+        process {
+            Write-Verbose "Checking PackageProviders ..."
+            if (!(Get-PackageProvider).Name.Contains("Nuget")) {
+                Invoke-CommandWithLog {
+                    Install-PackageProvider -Name NuGet -Force
+                    # https://answers.microsoft.com/en-us/windows/forum/windows_7-performance/trying-to-install-program-using-powershell-and/4c3ac2b2-ebd4-4b2a-a673-e283827da143
+                }
+            }
+            Write-Verbose "ForceBootstrap Nuget ..."
+            Invoke-CommandWithLog {
+                Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false
+                # ie: PowerShellGet requires NuGet provider version '2.8.5.201' or newer to interact with NuGet-based repositories.
+            }
+            # Nuget-Cli :
+            if (!(Get-Command -Name Nuget -Type Application -ErrorAction Ignore) -and ![bool][int]$env:IsAC) {
+                Write-Verbose "Downloading the latest nuget cli ..."
+                Write-Verbose "Force bootstrap nuget to its latest version."
+                if ([System.Environment]::OSVersion.Platform -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')) {
+                    # In most cases the NuGet provider is either located in '$env:ProgramFiles/PackageManagement/ProviderAssemblies/' or '$env:LOCALAPPDATA/PackageManagement/ProviderAssemblies/'. IE:
+                    $PfilesNuget = [IO.FileInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("$env:ProgramFiles/PackageManagement/ProviderAssemblies/Nuget.exe"))
+                    $lappdtNuget = [IO.FileInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("$env:LOCALAPPDATA/PackageManagement/ProviderAssemblies/Nuget.exe"))
+                    $ps_get_Path = [IO.DirectoryInfo]::New("$HOME/AppData/Local/Microsoft/Windows/PowerShell/PowerShellGet/")
+                    $nuget = if ($PfilesNuget.Exists -and $lappdtNuget.Exists) { [void]$PfilesNuget.delete(); $lappdtNuget } elseif ($PfilesNuget.Exists -and !$lappdtNuget.Exists) { $PfilesNuget } else { $lappdtNuget }
+                    if (!$nuget.Directory.Exists) { New-Item -ItemType Directory -Path $nuget.Directory.FullName | Out-Null }
+                    if (!$ps_get_Path.Exists) { New-Item -ItemType Directory -Path $ps_get_Path.FullName | Out-Null }
+                    Write-Verbose "Downloading latest nuget cli version from dist.nuget.org ..."
+                    if (!$nuget.Exists) { Invoke-WebRequest -Uri "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" -OutFile $nuget.FullName }
+                    Copy-Item $nuget.FullName -Destination $ps_get_Path.FullName | out-null
+                    $env:PATH = $env:PATH + [IO.Path]::PathSeparator + "$($nuget.Directory)"
+                    $env:PATH = $env:PATH + [IO.Path]::PathSeparator + "$($nuget.Directory)"
+                    . ([scriptblock]::Create((Invoke-RestMethod -Verbose:$false -Method Get https://api.github.com/gists/8b4ddc0302a9262cf7fc25e919227a2f).files.'Update_Session_Env.ps1'.content))
+                    Update-SessionEnvironment; $Host.ui.WriteLine()
+                    Invoke-CommandWithLog { Nuget update -self | Out-Null }
+                }
+                # else: { Write-Host "TODO: Install-nuget-cli-on-linux."
+                # https://www.geeksforgeeks.org/how-to-install-nuget-from-command-line-on-linux }
+            }
+            if (![bool](Get-PackageSource -Name PSGallery -ErrorAction Ignore)) {
+                Register-PackageSource -Name PSGallery -Location https://www.powershellgallery.com/api/v2 -ProviderName PowerShellGet -Trusted
+            }
+            if (![bool](Get-PSRepository PSGallery -ErrorAction Ignore)) {
+                $parameters = @{  
+                    Name = "PSGallery"  
+                    SourceLocation = "https://www.powershellgallery.com/api/v2"  
+                    PublishLocation = "https://www.powershellgallery.com/api/v2/package/"  
+                    ScriptSourceLocation = "https://www.powershellgallery.com/api/v2/items/psscript"  
+                    ScriptPublishLocation = "https://www.powershellgallery.com/api/v2/package/"  
+                    InstallationPolicy = 'Trusted'  
+                }  
+                Register-PSRepository @parameters
+            }
+            Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false
+        }
+    }
     #endregion BuildHelper_Functions
 }
 Process {
@@ -1384,11 +1446,12 @@ Process {
         }
     }
     Write-Heading "Prepare package feeds"
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Resolve-PackageProviders; $Host.ui.WriteLine(); $null = Import-PackageProvider -Name NuGet -Force
     foreach ($Name in @('PackageManagement', 'PowerShellGet')) {
         # Manual install them to prevent wierd errors like:
         # https://answers.microsoft.com/en-us/windows/forum/all/trying-to-install-program-using-powershell-and/4c3ac2b2-ebd4-4b2a-a673-e283827da143
-        $Host.UI.WriteLine(); Install-PsGalleryModule -Name $Name -Manually;
+        Write-Host "`nInstall dependency Module [$Name]" -ForegroundColor Magenta
+        Install-PsGalleryModule -Name $Name; $Host.UI.WriteLine()
         Write-Verbose -Message "Importing module $moduleName ..."
         try {
             Get-ModulePath -Name $Name | Import-Module -Force -Verbose:$true
@@ -1397,57 +1460,21 @@ Process {
             Write-Warning "$($_.Exception.Message) "
         }
     }
-    # Get-PackageProvider | Where-Object name -Like "*nuget*" | ForEach-Object { Install-PackageProvider -Name $_.Name -Force -Confirm:$false}
-    $pltID = [System.Environment]::OSVersion.Platform; # [Enum]::GetNames([System.PlatformID])
-    $Is_Windows = $pltID -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')
-    
-    if (!(Get-Command -Name Nuget -Type Application -ErrorAction Ignore) -and ![bool][int]$env:IsAC) {
-        Write-BuildLog "Downloading the latest nuget cli ..."
-        Write-BuildLog "Force bootstrap nuget to its latest version."
-        if ($Is_Windows) {
-            # In most cases the NuGet provider is either located in '$env:ProgramFiles/PackageManagement/ProviderAssemblies/' or '$env:LOCALAPPDATA/PackageManagement/ProviderAssemblies/'. IE:
-            $PfilesNuget = [IO.FileInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("$env:ProgramFiles/PackageManagement/ProviderAssemblies/Nuget.exe"))
-            $lappdtNuget = [IO.FileInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("$env:LOCALAPPDATA/PackageManagement/ProviderAssemblies/Nuget.exe"))
-            $ps_get_Path = [IO.DirectoryInfo]::New("$HOME/AppData/Local/Microsoft/Windows/PowerShell/PowerShellGet/")
-            $nuget = if ($PfilesNuget.Exists -and $lappdtNuget.Exists) { [void]$PfilesNuget.delete(); $lappdtNuget } elseif ($PfilesNuget.Exists -and !$lappdtNuget.Exists) { $PfilesNuget } else { $lappdtNuget }
-            if (!$nuget.Directory.Exists) { New-Item -ItemType Directory -Path $nuget.Directory.FullName | Out-Null }
-            if (!$ps_get_Path.Exists) { New-Item -ItemType Directory -Path $ps_get_Path.FullName | Out-Null }
-            Write-BuildLog "Downloading latest nuget cli version from dist.nuget.org ..."
-            if (!$nuget.Exists) { Invoke-WebRequest -Uri "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" -OutFile $nuget.FullName }
-            Copy-Item $nuget.FullName -Destination $ps_get_Path.FullName | out-null
-            $env:PATH = $env:PATH + [IO.Path]::PathSeparator + "$($nuget.Directory)"
-            $env:PATH = $env:PATH + [IO.Path]::PathSeparator + "$($nuget.Directory)"
-            . ([scriptblock]::Create((Invoke-RestMethod -Verbose:$false -Method Get https://api.github.com/gists/8b4ddc0302a9262cf7fc25e919227a2f).files.'Update_Session_Env.ps1'.content))
-            Update-SessionEnvironment; $Host.ui.WriteLine()
-            Invoke-CommandWithLog { Nuget update -self | Out-Null }
-        }
-        Invoke-CommandWithLog {
-            Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false
-            # ie: PowerShellGet requires NuGet provider version '2.8.5.201' or newer to interact with NuGet-based repositories.
-        }
-        # else: { Write-Host "TODO: Install-nuget-cli-on-linux."
-        # https://www.geeksforgeeks.org/how-to-install-nuget-from-command-line-on-linux }
-    }
-    if (![bool](Get-PackageSource -Name PSGallery -ErrorAction Ignore)) {
-        Register-PackageSource -Name PSGallery -Location https://www.powershellgallery.com/api/v2 -ProviderName PowerShellGet -Trusted
-    }
-    Register-PSRepository -Default -InstallationPolicy Trusted
-    Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false
-    $null = Import-PackageProvider -Name NuGet -Force
-    $Host.ui.WriteLine();
     if (!(Get-Command dotnet -ErrorAction Ignore) -and ![bool][int]$env:IsAC) {
         Write-Host "Resolve dependency [dotnet cli] For publish operations`n" -ForegroundColor Magenta
         Invoke-CommandWithLog {
             [System.Environment]::SetEnvironmentVariable('DOTNET_ROOT', [IO.Path]::Combine($HOME, '.dotnet'))
             # dotnet command version '2.0.0' or newer is required to interact with the NuGet-based repositories.
-        }
-        if ($Is_Windows) {
+        };
+        if ([System.Environment]::OSVersion.Platform -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')) {
             # Run a separate PowerShell process because the script calls exit, so it will end the current PowerShell session.
             &powershell -NoProfile -ExecutionPolicy unrestricted -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; &([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing 'https://dot.net/v1/dotnet-install.ps1'))) -channel LTS"
             $env:PATH = $env:PATH + [IO.Path]::PathSeparator + "$env:DOTNET_ROOT"
             . ([scriptblock]::Create((Invoke-RestMethod -Verbose:$false -Method Get https://api.github.com/gists/8b4ddc0302a9262cf7fc25e919227a2f).files.'Update_Session_Env.ps1'.content))
+            Write-Host "`nRefresh SessionEnvironment" -ForegroundColor Magenta
             Update-SessionEnvironment; $Host.ui.WriteLine()
         } else {
+            $Host.ui.WriteLine();
             curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel LTS
             Write-Output 'export DOTNET_ROOT=$HOME/.dotnet' >> ~/.bashrc
             Write-Output 'export PATH=$PATH:$DOTNET_ROOT:$DOTNET_ROOT/tools' >> ~/.bashrc
@@ -1499,7 +1526,7 @@ Process {
         Invoke-Command -ScriptBlock $PSake_Build
         Write-Heading "Create a Local repository"
         $RepoPath = [IO.Path]::Combine([environment]::GetEnvironmentVariable("HOME"), 'LocalPSRepo')
-        if (!(Get-Variable -Name IsWindows -ErrorAction Ignore) -or $(Get-Variable IsWindows -ValueOnly)) {
+        if ([System.Environment]::OSVersion.Platform -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')) {
             $RepoPath = [IO.Path]::Combine([environment]::GetEnvironmentVariable("UserProfile"), 'LocalPSRepo')
         }; if (!(Test-Path -Path $RepoPath -PathType Container -ErrorAction Ignore)) { New-Directory -Path $RepoPath | Out-Null }
         Invoke-Command -ScriptBlock ([scriptblock]::Create("Register-PSRepository -Name LocalPSRepo -SourceLocation '$RepoPath' -PublishLocation '$RepoPath' -InstallationPolicy Trusted -Verbose:`$false -ErrorAction Ignore; Register-PackageSource -Name LocalPsRepo -Location '$RepoPath' -Trusted -ProviderName Bootstrap -ErrorAction Ignore"))

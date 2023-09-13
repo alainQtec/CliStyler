@@ -165,7 +165,7 @@ if (!$Env:GITHUB_ACTION_PATH) {
     
     $private:AESKey = $null; Set-Variable -Name AESKey -Value ([AzureHSM]::New().RetrieveKey()) -Option ReadOnly -Visibility Private
     $apiPrompt_text = "Enter your NUGET APIKEY"
-    $private:UsrNpt = $null; Set-Variable -Name UsrNpt -Scope Local -Visibility Private -Option Private -Value $(if ($IsWindows) {
+    $private:UsrNpt = $null; Set-Variable -Name UsrNpt -Scope Local -Visibility Private -Option Private -Value $(if ([System.Environment]::OSVersion.Platform -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')) {
             [AzureHSM]::ConvertToSecureString([scriptblock]::Create("$((Invoke-RestMethod -Method Get https://api.github.com/gists/b12ce490d427a917d3d6a24f71180f7e).files.'SecureText-Prompt-Gui.ps1'.content)").Invoke($apiPrompt_text))
         }
         else {
