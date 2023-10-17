@@ -479,6 +479,32 @@ class CliStyler {
             throw [System.Management.Automation.RuntimeException]::new("Writing to the console in 24-bit colors can only work with PowerShell versions lower than '5.1 build 14931' or above.`nBut yours is '$VersionNum' build '$psBuild'")
         }
     }
+    static [psobject] GetPsEngine() {
+        #get the current PowerShell process and the file that launched it
+        $chost = Get-Variable Host -ValueOnly; $engine = Get-Process -Id $(Get-Variable pid -ValueOnly) | Get-Item
+        $versionTable = Get-Variable PSVersionTable -ValueOnly
+        return [pscustomobject]@{
+                Path           = $engine.Fullname
+                FileVersion    = $engine.VersionInfo.FileVersion
+                PSVersion      = $versionTable.PSVersion.ToString()
+                ProductVersion = $engine.VersionInfo.ProductVersion
+                Edition        = $versionTable.PSEdition
+                Host           = $chost.name
+                Culture        = $chost.CurrentCulture
+                Platform       = $versionTable.platform
+            }
+    }
+    static [void] SetConsoleTitle([string]$Title) {
+        $chost = Get-Variable Host -ValueOnly
+        $width = ($chost.UI.RawUI.MaxWindowSize.Width * 2)
+        if ($chost.Name -ne "ConsoleHost") {
+            Write-Warning "This command must be run from a PowerShell console session. Not the PowerShell ISE or Visual Studio Code or similar environments."
+        } elseif (($title.length -ge $width)) {
+            Write-Warning "Your title is too long. It needs to be less than $width to fit your current console."
+        } else {
+            $chost.ui.RawUI.WindowTitle = $Title
+        }
+    }
     static hidden [void] Create_Prompt_Function() {
         # Creates the Custom prompt function & if nothing goes wrong then shows a welcome Ascii Art
         [CliStyler]::CurrExitCode = $true
