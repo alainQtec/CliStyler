@@ -172,13 +172,7 @@ class CliStyler {
     static hidden [string] $WINDOWS_TERMINAL_PATH = [IO.Path]::Combine($env:LocalAppdata, 'Packages', 'Microsoft.WindowsTerminal_8wekyb3d8bbwe', 'LocalState', 'settings.json');
     static hidden [PSCustomObject] $TERMINAL_Settings
 
-    CliStyler() {
-        [CliStyler]::Initialize(); # By default will only in run if -not [CliStyler]::IsInitialised()
-    }
-    static [void] Create() {
-        # Creates the prompt function
-        $null = New-Item -Path function:prompt -Value $([scriptblock]::Create([CliStyler]::Write_Prompt())) -Force
-    }
+    CliStyler() {}
     static [void] Initialize() {
         [CliStyler]::Initialize(@())
     }
@@ -484,15 +478,15 @@ class CliStyler {
         $chost = Get-Variable Host -ValueOnly; $engine = Get-Process -Id $(Get-Variable pid -ValueOnly) | Get-Item
         $versionTable = Get-Variable PSVersionTable -ValueOnly
         return [pscustomobject]@{
-                Path           = $engine.Fullname
-                FileVersion    = $engine.VersionInfo.FileVersion
-                PSVersion      = $versionTable.PSVersion.ToString()
-                ProductVersion = $engine.VersionInfo.ProductVersion
-                Edition        = $versionTable.PSEdition
-                Host           = $chost.name
-                Culture        = $chost.CurrentCulture
-                Platform       = $versionTable.platform
-            }
+            Path           = $engine.Fullname
+            FileVersion    = $engine.VersionInfo.FileVersion
+            PSVersion      = $versionTable.PSVersion.ToString()
+            ProductVersion = $engine.VersionInfo.ProductVersion
+            Edition        = $versionTable.PSEdition
+            Host           = $chost.name
+            Culture        = $chost.CurrentCulture
+            Platform       = $versionTable.platform
+        }
     }
     static [void] SetConsoleTitle([string]$Title) {
         $chost = Get-Variable Host -ValueOnly
@@ -509,7 +503,58 @@ class CliStyler {
         # Creates the Custom prompt function & if nothing goes wrong then shows a welcome Ascii Art
         [CliStyler]::CurrExitCode = $true
         try {
-            [void][CliStyler]::Create();
+            # Creates the prompt function
+            $null = New-Item -Path function:prompt -Value $([scriptblock]::Create({
+                        if (![CliStyler]::IsInitialised()) {
+                            Write-Verbose "[CliStyler] Initializing, Please wait ..."
+                            [CliStyler]::Initialize()
+                        }
+                        try {
+                            if ($NestedPromptLevel -ge 1) {
+                                [CliStyler]::trailngChar += [string][char]9588
+                                # [CliStyler]::leadingChar += [string][char]9592
+                            }
+                            # Grab th current loaction
+                            $location = "$((Get-Variable ExecutionContext).Value.SessionState.Path.CurrentLocation.Path)";
+                            $shortLoc = [CliStyler]::Get_Short_Path($location, [CliStyler]::dt)
+                            $IsGitRepo = if ([bool]$(try { Test-Path .git -ErrorAction silentlyContinue }catch { $false })) { $true }else { $false }
+                            $(Get-Variable Host).Value.UI.Write(([CliStyler]::leadingChar))
+                            Write-Host -NoNewline $([CliStyler]::b1);
+                            Write-Host $([Environment]::UserName).ToLower() -NoNewline -ForegroundColor Magenta;
+                            Write-Host $([string][char]64) -NoNewline -ForegroundColor Gray;
+                            Write-Host $([System.Net.Dns]::GetHostName().ToLower()) -NoNewline -ForegroundColor DarkYellow;
+                            Write-Host -NoNewline "$([CliStyler]::b2) ";
+                            if ($location -eq "$env:UserProfile") {
+                                Write-Host $([CliStyler]::Home_Indic) -NoNewline -ForegroundColor DarkCyan;
+                            } elseif ($location.Contains("$env:UserProfile")) {
+                                $location = $($location.replace("$env:UserProfile", "$([CliStyler]::swiglyChar)"));
+                                if ($location.Length -gt 25) {
+                                    $location = [CliStyler]::Get_Short_Path($location, [CliStyler]::dt)
+                                }
+                                Write-Host $location -NoNewline -ForegroundColor DarkCyan
+                            } else {
+                                Write-Host $shortLoc -NoNewline -ForegroundColor DarkCyan
+                            }
+                            if ($IsGitRepo) {
+                                Write-Host $(Write-VcsStatus)
+                            } else {
+                                # No alternate display, just send a newline
+                                Write-Host ''
+                            }
+                        } catch {
+                            #Do this if a terminating exception happens#
+                            # if ($_.Exception.WasThrownFromThrowStatement) {
+                            #     [System.Management.Automation.ErrorRecord]$_ | Write-Log $([CliStyler]::LogFile.FullName)
+                            # }
+                            $(Get-Variable Host).Value.UI.WriteErrorLine("[PromptError] [$($_.FullyQualifiedErrorId)] $($_.Exception.Message) # see the Log File : $([CliStyler]::LogFile.FullName) $([CliStyler]::nl)")
+                        } finally {
+                            #Do this after the try block regardless of whether an exception occurred or not
+                            Set-Variable -Name LASTEXITCODE -Scope Global -Value $([CliStyler]::realLASTEXITCODE)
+                        }
+                        Write-Host ([CliStyler]::trailngChar)
+                    }
+                )
+            ) -Force
             [CliStyler]::CurrExitCode = [CliStyler]::CurrExitCode -and $?
         } catch {
             [CliStyler]::CurrExitCode = $false
@@ -561,55 +606,6 @@ class CliStyler {
             }
         }
         return $outPath
-    }
-    static hidden [void] Write_Prompt() {
-        if (![CliStyler]::IsInitialised()) {
-            Write-Verbose "[CliStyler] Initializing, Please wait ..."
-            [CliStyler]::Initialize()
-        }
-        try {
-            if ($NestedPromptLevel -ge 1) {
-                [CliStyler]::trailngChar += [string][char]9588
-                # [CliStyler]::leadingChar += [string][char]9592
-            }
-            # Grab th current loaction
-            $location = "$((Get-Variable ExecutionContext).Value.SessionState.Path.CurrentLocation.Path)";
-            $shortLoc = [CliStyler]::Get_Short_Path($location, [CliStyler]::dt)
-            $IsGitRepo = if ([bool]$(try { Test-Path .git -ErrorAction silentlyContinue }catch { $false })) { $true }else { $false }
-            $(Get-Variable Host).Value.UI.Write(([CliStyler]::leadingChar))
-            Write-Host -NoNewline $([CliStyler]::b1);
-            Write-Host $([Environment]::UserName).ToLower() -NoNewline -ForegroundColor Magenta;
-            Write-Host $([string][char]64) -NoNewline -ForegroundColor Gray;
-            Write-Host $([System.Net.Dns]::GetHostName().ToLower()) -NoNewline -ForegroundColor DarkYellow;
-            Write-Host -NoNewline "$([CliStyler]::b2) ";
-            if ($location -eq "$env:UserProfile") {
-                Write-Host $([CliStyler]::Home_Indic) -NoNewline -ForegroundColor DarkCyan;
-            } elseif ($location.Contains("$env:UserProfile")) {
-                $location = $($location.replace("$env:UserProfile", "$([CliStyler]::swiglyChar)"));
-                if ($location.Length -gt 25) {
-                    $location = [CliStyler]::Get_Short_Path($location, [CliStyler]::dt)
-                }
-                Write-Host $location -NoNewline -ForegroundColor DarkCyan
-            } else {
-                Write-Host $shortLoc -NoNewline -ForegroundColor DarkCyan
-            }
-            if ($IsGitRepo) {
-                Write-Host $(Write-VcsStatus)
-            } else {
-                # No alternate display, just send a newline
-                Write-Host ''
-            }
-        } catch {
-            #Do this if a terminating exception happens#
-            # if ($_.Exception.WasThrownFromThrowStatement) {
-            #     [System.Management.Automation.ErrorRecord]$_ | Write-Log $([CliStyler]::LogFile.FullName)
-            # }
-            $(Get-Variable Host).Value.UI.WriteErrorLine("[PromptError] [$($_.FullyQualifiedErrorId)] $($_.Exception.Message) # see the Log File : $([CliStyler]::LogFile.FullName) $([CliStyler]::nl)")
-        } finally {
-            #Do this after the try block regardless of whether an exception occurred or not
-            Set-Variable -Name LASTEXITCODE -Scope Global -Value $([CliStyler]::realLASTEXITCODE)
-        }
-        Write-Host [CliStyler]::trailngChar
     }
 }
 #endregion Classes
