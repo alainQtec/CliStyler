@@ -65,6 +65,7 @@ class CliStyler {
                 Write-Debug "[CliStyler] is already Initialized, Skipping ..."
             }
         }
+        [CliStyler]::Set_TerminalUI()
         Write-Debug -Message "[CliStyler] Displaying a welcome message/MOTD ..."
         [CliStyler]::Write_Term_Ascii()
     }
@@ -422,7 +423,7 @@ class CliStyler {
         # Set Host UI DEFAULS
         [CliStyler]::WindowTitle = [CliStyler]::GetWindowTitle()
     }
-    static [void] Set_Default_HostU() {
+    static [void] Set_TerminalUI() {
         (Get-Variable -Name Host -ValueOnly).UI.RawUI.WindowTitle = [CliStyler]::WindowTitle
         (Get-Variable -Name Host -ValueOnly).UI.RawUI.ForegroundColor = "White"
         (Get-Variable -Name Host -ValueOnly).PrivateData.ErrorForegroundColor = "DarkGray"
