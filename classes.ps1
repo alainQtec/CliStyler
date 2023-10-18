@@ -17,164 +17,27 @@ class RGB {
     }
 }
 class CliStyler {
-    static [Int32] $realLASTEXITCODE = $LASTEXITCODE;
-    static [char] $swiglyChar = [char]126;
-    static [char] $DirSeparator = [System.IO.Path]::DirectorySeparatorChar;
-    static [string] $nl = [Environment]::NewLine;
-    # UTF8 Characters from https://www.w3schools.com/charsets/ref_utf_box.asp
-    static [string] $dt = [string][char]8230;
-    static [string] $b1 = [string][char]91;
-    static [string] $b2 = [string][char]93;
-    static [string] $Home_Indic = $swiglyChar + [IO.Path]::DirectorySeparatorChar;
-    static [PsObject] $PSVersn = (Get-Variable PSVersionTable).Value;
-    static [string] $leadingChar = [char]9581 + [char]9592;
-    static [string] $trailngChar = [char]9584 + [char]9588;
-    static [IO.FileInfo] $LogFile;
-    static [Hashtable] $colors = @{
-        Red                  = [rgb]::new(255, 0, 0)
-        DarkRed              = [rgb]::new(128, 0, 0)
-        Green                = [rgb]::new(0, 255, 0)
-        DarkGreen            = [rgb]::new(0, 128, 0)
-        Blue                 = [rgb]::new(0, 0, 255)
-        DarkBlue             = [rgb]::new(0, 0, 128)
-        White                = [rgb]::new(255, 255, 255)
-        Black                = [rgb]::new(0, 0, 0)
-        Yellow               = [rgb]::new(255, 255, 0)
-        DarkGray             = [rgb]::new(128, 128, 128)
-        Gray                 = [rgb]::new(192, 192, 192)
-        LightGray            = [rgb]::new(238, 237, 240)
-        Cyan                 = [rgb]::new(0, 255, 255)
-        DarkCyan             = [rgb]::new(0, 128, 128)
-        Magenta              = [rgb]::new(255, 0, 255)
-        PSBlue               = [rgb]::new(1, 36, 86)
-        AliceBlue            = [rgb]::new(240, 248, 255)
-        AntiqueWhite         = [rgb]::new(250, 235, 215)
-        AquaMarine           = [rgb]::new(127, 255, 212)
-        Azure                = [rgb]::new(240, 255, 255)
-        Beige                = [rgb]::new(245, 245, 220)
-        Bisque               = [rgb]::new(255, 228, 196)
-        BlanchedAlmond       = [rgb]::new(255, 235, 205)
-        BlueViolet           = [rgb]::new(138, 43, 226)
-        Brown                = [rgb]::new(165, 42, 42)
-        Burlywood            = [rgb]::new(222, 184, 135)
-        CadetBlue            = [rgb]::new(95, 158, 160)
-        Chartreuse           = [rgb]::new(127, 255, 0)
-        Chocolate            = [rgb]::new(210, 105, 30)
-        Coral                = [rgb]::new(255, 127, 80)
-        CornflowerBlue       = [rgb]::new(100, 149, 237)
-        CornSilk             = [rgb]::new(255, 248, 220)
-        Crimson              = [rgb]::new(220, 20, 60)
-        DarkGoldenrod        = [rgb]::new(184, 134, 11)
-        DarkKhaki            = [rgb]::new(189, 183, 107)
-        DarkMagenta          = [rgb]::new(139, 0, 139)
-        DarkOliveGreen       = [rgb]::new(85, 107, 47)
-        DarkOrange           = [rgb]::new(255, 140, 0)
-        DarkOrchid           = [rgb]::new(153, 50, 204)
-        DarkSalmon           = [rgb]::new(233, 150, 122)
-        DarkSeaGreen         = [rgb]::new(143, 188, 143)
-        DarkSlateBlue        = [rgb]::new(72, 61, 139)
-        DarkSlateGray        = [rgb]::new(47, 79, 79)
-        DarkTurquoise        = [rgb]::new(0, 206, 209)
-        DarkViolet           = [rgb]::new(148, 0, 211)
-        DeepPink             = [rgb]::new(255, 20, 147)
-        DeepSkyBlue          = [rgb]::new(0, 191, 255)
-        DimGray              = [rgb]::new(105, 105, 105)
-        DodgerBlue           = [rgb]::new(30, 144, 255)
-        FireBrick            = [rgb]::new(178, 34, 34)
-        FloralWhite          = [rgb]::new(255, 250, 240)
-        ForestGreen          = [rgb]::new(34, 139, 34)
-        GainsBoro            = [rgb]::new(220, 220, 220)
-        GhostWhite           = [rgb]::new(248, 248, 255)
-        Gold                 = [rgb]::new(255, 215, 0)
-        Goldenrod            = [rgb]::new(218, 165, 32)
-        GreenYellow          = [rgb]::new(173, 255, 47)
-        HoneyDew             = [rgb]::new(240, 255, 240)
-        HotPink              = [rgb]::new(255, 105, 180)
-        IndianRed            = [rgb]::new(205, 92, 92)
-        Indigo               = [rgb]::new(75, 0, 130)
-        Ivory                = [rgb]::new(255, 255, 240)
-        Khaki                = [rgb]::new(240, 230, 140)
-        Lavender             = [rgb]::new(230, 230, 250)
-        LavenderBlush        = [rgb]::new(255, 240, 245)
-        LawnGreen            = [rgb]::new(124, 252, 0)
-        LemonChiffon         = [rgb]::new(255, 250, 205)
-        LightBlue            = [rgb]::new(173, 216, 230)
-        LightCoral           = [rgb]::new(240, 128, 128)
-        LightCyan            = [rgb]::new(224, 255, 255)
-        LightGoldenrodYellow = [rgb]::new(250, 250, 210)
-        LightPink            = [rgb]::new(255, 182, 193)
-        LightSalmon          = [rgb]::new(255, 160, 122)
-        LightSeaGreen        = [rgb]::new(32, 178, 170)
-        LightSkyBlue         = [rgb]::new(135, 206, 250)
-        LightSlateGray       = [rgb]::new(119, 136, 153)
-        LightSteelBlue       = [rgb]::new(176, 196, 222)
-        LightYellow          = [rgb]::new(255, 255, 224)
-        LimeGreen            = [rgb]::new(50, 205, 50)
-        Linen                = [rgb]::new(250, 240, 230)
-        MediumAquaMarine     = [rgb]::new(102, 205, 170)
-        MediumOrchid         = [rgb]::new(186, 85, 211)
-        MediumPurple         = [rgb]::new(147, 112, 219)
-        MediumSeaGreen       = [rgb]::new(60, 179, 113)
-        MediumSlateBlue      = [rgb]::new(123, 104, 238)
-        MediumSpringGreen    = [rgb]::new(0, 250, 154)
-        MediumTurquoise      = [rgb]::new(72, 209, 204)
-        MediumVioletRed      = [rgb]::new(199, 21, 133)
-        MidnightBlue         = [rgb]::new(25, 25, 112)
-        MintCream            = [rgb]::new(245, 255, 250)
-        MistyRose            = [rgb]::new(255, 228, 225)
-        Moccasin             = [rgb]::new(255, 228, 181)
-        NavajoWhite          = [rgb]::new(255, 222, 173)
-        OldLace              = [rgb]::new(253, 245, 230)
-        Olive                = [rgb]::new(128, 128, 0)
-        OliveDrab            = [rgb]::new(107, 142, 35)
-        Orange               = [rgb]::new(255, 165, 0)
-        OrangeRed            = [rgb]::new(255, 69, 0)
-        Orchid               = [rgb]::new(218, 112, 214)
-        PaleGoldenrod        = [rgb]::new(238, 232, 170)
-        PaleGreen            = [rgb]::new(152, 251, 152)
-        PaleTurquoise        = [rgb]::new(175, 238, 238)
-        PaleVioletRed        = [rgb]::new(219, 112, 147)
-        PapayaWhip           = [rgb]::new(255, 239, 213)
-        PeachPuff            = [rgb]::new(255, 218, 185)
-        Peru                 = [rgb]::new(205, 133, 63)
-        Pink                 = [rgb]::new(255, 192, 203)
-        Plum                 = [rgb]::new(221, 160, 221)
-        PowderBlue           = [rgb]::new(176, 224, 230)
-        Purple               = [rgb]::new(128, 0, 128)
-        RosyBrown            = [rgb]::new(188, 143, 143)
-        RoyalBlue            = [rgb]::new(65, 105, 225)
-        SaddleBrown          = [rgb]::new(139, 69, 19)
-        Salmon               = [rgb]::new(250, 128, 114)
-        SandyBrown           = [rgb]::new(244, 164, 96)
-        SeaGreen             = [rgb]::new(46, 139, 87)
-        SeaShell             = [rgb]::new(255, 245, 238)
-        Sienna               = [rgb]::new(160, 82, 45)
-        SkyBlue              = [rgb]::new(135, 206, 235)
-        SlateBlue            = [rgb]::new(106, 90, 205)
-        SlateGray            = [rgb]::new(112, 128, 144)
-        Snow                 = [rgb]::new(255, 250, 250)
-        SpringGreen          = [rgb]::new(0, 255, 127)
-        SteelBlue            = [rgb]::new(70, 130, 180)
-        Tan                  = [rgb]::new(210, 180, 140)
-        Thistle              = [rgb]::new(216, 191, 216)
-        Tomato               = [rgb]::new(255, 99, 71)
-        Turquoise            = [rgb]::new(64, 224, 208)
-        Violet               = [rgb]::new(238, 130, 238)
-        Wheat                = [rgb]::new(245, 222, 179)
-        WhiteSmoke           = [rgb]::new(245, 245, 245)
-        YellowGreen          = [rgb]::new(154, 205, 50)
-    }
-    static hidden [bool] $CurrExitCode
-    # The default launch ascii : alainQtec. but TODO: add a way to load it from a config instead of hardcoding it.
-    static [string] $Default_Term_Ascii = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('bSUBJQElASVuJW0lbiUgACAAIAAgACAAIAAgAG0lASUBJQElbiVtJW4lCgADJW0lASVuJQMlAyUDJSAAIAAgAG0lbiUgACAAAyVtJQElbiUDJW8lcCVuJQoAAyUDJSAAAyUDJQMlbSUBJQElbiVtJW4lASVuJQMlAyUgAAMlAyVuJW0lbSUBJQElbiUBJQElbiUKAAMlcCUBJW8lAyUDJQMlbSUgAAMlfAADJW0lbiVuJQMlIAADJQMlAyUDJXwAbSVuJQMlbSUBJW8lCgADJW0lASVuJQMlAyVwJXAlbyVwJW4lAyUDJQMlAyVwJQElbyUDJQMlcCVuJQMlASUrJXAlASVuJQoAcCVvJSAAcCVvJXAlASVvJQElASVvJW8lbyVwJW8lASUBJW4lcCUBJQElbyUBJQElbyUBJQElbyUKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABwJW8lCgAiAFEAdQBpAGMAawAgAHAAcgBvAGQAdQBjAHQAaQB2AGUAIAB0AGUAYwBoACIA'));
-    static [string[]] $Default_Dependencies = @('Terminal-Icons', 'PSReadline', 'Pester', 'Posh-git', 'PSWinGlue', 'PowerShellForGitHub');
-    static hidden [string] $WINDOWS_TERMINAL_PATH = [IO.Path]::Combine($env:LocalAppdata, 'Packages', 'Microsoft.WindowsTerminal_8wekyb3d8bbwe', 'LocalState', 'settings.json');
+    static [string] $nl
+    static [string] $dt
+    static [string] $b1
+    static [string] $b2
+    static [char] $swiglyChar
+    static [Hashtable] $colors
+    static [PsObject] $PSVersn
+    static [char] $DirSeparator
+    static [string] $Home_Indic
+    static [string] $leadingChar
+    static [string] $trailngChar
+    static [IO.FileInfo] $LogFile
+    static [string] $Default_Term_Ascii
     static hidden [PsObject] $PROFILE
+    static hidden [bool] $CurrExitCode
+    static [string[]] $Default_Dependencies
+    static hidden [string] $WINDOWS_TERMINAL_PATH
+    static [Int32] $realLASTEXITCODE = $LASTEXITCODE
     static hidden [PSCustomObject] $TERMINAL_Settings
+    CliStyler() {}
 
-    CliStyler() {
-        $this::PROFILE = $this::Get_Profile()
-    }
     static [void] Initialize() {
         [CliStyler]::Initialize(@())
     }
@@ -182,10 +45,7 @@ class CliStyler {
         [CliStyler]::Initialize(@(), $false)
     }
     static [void] Initialize([string[]]$DependencyModules, [bool]$force) {
-        # Initialize or Reload $PROFILE and the core functions necessary for displaying your custom prompt.
-        # it is used to Load/reload PowerShell $Profile
-        # Its usefull when you want to reload powershell session after making changes to your PSProfile.
-
+        [CliStyler]::Set_Defaults()
         Write-Verbose '[CliStyler] Setting up required resources ... (One-time process)'
         [CliStyler]::ResolveRequirements($DependencyModules, $force); [CliStyler]::CurrExitCode = $true # RESET current exit code.
 
@@ -403,6 +263,160 @@ class CliStyler {
             # TODO: #3 Move configuration to directory instead of manipulating original profile file
             Add-Content -Path $prof -Value $PROFILE_OPTIONS
         }
+    }
+    static hidden [void] Set_Defaults() {
+        [CliStyler]::Default_Dependencies = @('Terminal-Icons', 'PSReadline', 'Pester', 'Posh-git', 'PSWinGlue', 'PowerShellForGitHub');
+        [CliStyler]::swiglyChar = [char]126;
+        [CliStyler]::DirSeparator = [System.IO.Path]::DirectorySeparatorChar;
+        [CliStyler]::nl = [Environment]::NewLine;
+        # UTF8 Characters from https://www.w3schools.com/charsets/ref_utf_box.asp
+        [CliStyler]::dt = [string][char]8230;
+        [CliStyler]::b1 = [string][char]91;
+        [CliStyler]::b2 = [string][char]93;
+        [CliStyler]::Home_Indic = [CliStyler]::swiglyChar + [IO.Path]::DirectorySeparatorChar;
+        [CliStyler]::PSVersn = (Get-Variable PSVersionTable).Value;
+        [CliStyler]::leadingChar = [char]9581 + [char]9592;
+        [CliStyler]::trailngChar = [char]9584 + [char]9588;
+        [CliStyler]::LogFile;
+        [CliStyler]::colors = @{
+            Red                  = [rgb]::new(255, 0, 0)
+            DarkRed              = [rgb]::new(128, 0, 0)
+            Green                = [rgb]::new(0, 255, 0)
+            DarkGreen            = [rgb]::new(0, 128, 0)
+            Blue                 = [rgb]::new(0, 0, 255)
+            DarkBlue             = [rgb]::new(0, 0, 128)
+            White                = [rgb]::new(255, 255, 255)
+            Black                = [rgb]::new(0, 0, 0)
+            Yellow               = [rgb]::new(255, 255, 0)
+            DarkGray             = [rgb]::new(128, 128, 128)
+            Gray                 = [rgb]::new(192, 192, 192)
+            LightGray            = [rgb]::new(238, 237, 240)
+            Cyan                 = [rgb]::new(0, 255, 255)
+            DarkCyan             = [rgb]::new(0, 128, 128)
+            Magenta              = [rgb]::new(255, 0, 255)
+            PSBlue               = [rgb]::new(1, 36, 86)
+            AliceBlue            = [rgb]::new(240, 248, 255)
+            AntiqueWhite         = [rgb]::new(250, 235, 215)
+            AquaMarine           = [rgb]::new(127, 255, 212)
+            Azure                = [rgb]::new(240, 255, 255)
+            Beige                = [rgb]::new(245, 245, 220)
+            Bisque               = [rgb]::new(255, 228, 196)
+            BlanchedAlmond       = [rgb]::new(255, 235, 205)
+            BlueViolet           = [rgb]::new(138, 43, 226)
+            Brown                = [rgb]::new(165, 42, 42)
+            Burlywood            = [rgb]::new(222, 184, 135)
+            CadetBlue            = [rgb]::new(95, 158, 160)
+            Chartreuse           = [rgb]::new(127, 255, 0)
+            Chocolate            = [rgb]::new(210, 105, 30)
+            Coral                = [rgb]::new(255, 127, 80)
+            CornflowerBlue       = [rgb]::new(100, 149, 237)
+            CornSilk             = [rgb]::new(255, 248, 220)
+            Crimson              = [rgb]::new(220, 20, 60)
+            DarkGoldenrod        = [rgb]::new(184, 134, 11)
+            DarkKhaki            = [rgb]::new(189, 183, 107)
+            DarkMagenta          = [rgb]::new(139, 0, 139)
+            DarkOliveGreen       = [rgb]::new(85, 107, 47)
+            DarkOrange           = [rgb]::new(255, 140, 0)
+            DarkOrchid           = [rgb]::new(153, 50, 204)
+            DarkSalmon           = [rgb]::new(233, 150, 122)
+            DarkSeaGreen         = [rgb]::new(143, 188, 143)
+            DarkSlateBlue        = [rgb]::new(72, 61, 139)
+            DarkSlateGray        = [rgb]::new(47, 79, 79)
+            DarkTurquoise        = [rgb]::new(0, 206, 209)
+            DarkViolet           = [rgb]::new(148, 0, 211)
+            DeepPink             = [rgb]::new(255, 20, 147)
+            DeepSkyBlue          = [rgb]::new(0, 191, 255)
+            DimGray              = [rgb]::new(105, 105, 105)
+            DodgerBlue           = [rgb]::new(30, 144, 255)
+            FireBrick            = [rgb]::new(178, 34, 34)
+            FloralWhite          = [rgb]::new(255, 250, 240)
+            ForestGreen          = [rgb]::new(34, 139, 34)
+            GainsBoro            = [rgb]::new(220, 220, 220)
+            GhostWhite           = [rgb]::new(248, 248, 255)
+            Gold                 = [rgb]::new(255, 215, 0)
+            Goldenrod            = [rgb]::new(218, 165, 32)
+            GreenYellow          = [rgb]::new(173, 255, 47)
+            HoneyDew             = [rgb]::new(240, 255, 240)
+            HotPink              = [rgb]::new(255, 105, 180)
+            IndianRed            = [rgb]::new(205, 92, 92)
+            Indigo               = [rgb]::new(75, 0, 130)
+            Ivory                = [rgb]::new(255, 255, 240)
+            Khaki                = [rgb]::new(240, 230, 140)
+            Lavender             = [rgb]::new(230, 230, 250)
+            LavenderBlush        = [rgb]::new(255, 240, 245)
+            LawnGreen            = [rgb]::new(124, 252, 0)
+            LemonChiffon         = [rgb]::new(255, 250, 205)
+            LightBlue            = [rgb]::new(173, 216, 230)
+            LightCoral           = [rgb]::new(240, 128, 128)
+            LightCyan            = [rgb]::new(224, 255, 255)
+            LightGoldenrodYellow = [rgb]::new(250, 250, 210)
+            LightPink            = [rgb]::new(255, 182, 193)
+            LightSalmon          = [rgb]::new(255, 160, 122)
+            LightSeaGreen        = [rgb]::new(32, 178, 170)
+            LightSkyBlue         = [rgb]::new(135, 206, 250)
+            LightSlateGray       = [rgb]::new(119, 136, 153)
+            LightSteelBlue       = [rgb]::new(176, 196, 222)
+            LightYellow          = [rgb]::new(255, 255, 224)
+            LimeGreen            = [rgb]::new(50, 205, 50)
+            Linen                = [rgb]::new(250, 240, 230)
+            MediumAquaMarine     = [rgb]::new(102, 205, 170)
+            MediumOrchid         = [rgb]::new(186, 85, 211)
+            MediumPurple         = [rgb]::new(147, 112, 219)
+            MediumSeaGreen       = [rgb]::new(60, 179, 113)
+            MediumSlateBlue      = [rgb]::new(123, 104, 238)
+            MediumSpringGreen    = [rgb]::new(0, 250, 154)
+            MediumTurquoise      = [rgb]::new(72, 209, 204)
+            MediumVioletRed      = [rgb]::new(199, 21, 133)
+            MidnightBlue         = [rgb]::new(25, 25, 112)
+            MintCream            = [rgb]::new(245, 255, 250)
+            MistyRose            = [rgb]::new(255, 228, 225)
+            Moccasin             = [rgb]::new(255, 228, 181)
+            NavajoWhite          = [rgb]::new(255, 222, 173)
+            OldLace              = [rgb]::new(253, 245, 230)
+            Olive                = [rgb]::new(128, 128, 0)
+            OliveDrab            = [rgb]::new(107, 142, 35)
+            Orange               = [rgb]::new(255, 165, 0)
+            OrangeRed            = [rgb]::new(255, 69, 0)
+            Orchid               = [rgb]::new(218, 112, 214)
+            PaleGoldenrod        = [rgb]::new(238, 232, 170)
+            PaleGreen            = [rgb]::new(152, 251, 152)
+            PaleTurquoise        = [rgb]::new(175, 238, 238)
+            PaleVioletRed        = [rgb]::new(219, 112, 147)
+            PapayaWhip           = [rgb]::new(255, 239, 213)
+            PeachPuff            = [rgb]::new(255, 218, 185)
+            Peru                 = [rgb]::new(205, 133, 63)
+            Pink                 = [rgb]::new(255, 192, 203)
+            Plum                 = [rgb]::new(221, 160, 221)
+            PowderBlue           = [rgb]::new(176, 224, 230)
+            Purple               = [rgb]::new(128, 0, 128)
+            RosyBrown            = [rgb]::new(188, 143, 143)
+            RoyalBlue            = [rgb]::new(65, 105, 225)
+            SaddleBrown          = [rgb]::new(139, 69, 19)
+            Salmon               = [rgb]::new(250, 128, 114)
+            SandyBrown           = [rgb]::new(244, 164, 96)
+            SeaGreen             = [rgb]::new(46, 139, 87)
+            SeaShell             = [rgb]::new(255, 245, 238)
+            Sienna               = [rgb]::new(160, 82, 45)
+            SkyBlue              = [rgb]::new(135, 206, 235)
+            SlateBlue            = [rgb]::new(106, 90, 205)
+            SlateGray            = [rgb]::new(112, 128, 144)
+            Snow                 = [rgb]::new(255, 250, 250)
+            SpringGreen          = [rgb]::new(0, 255, 127)
+            SteelBlue            = [rgb]::new(70, 130, 180)
+            Tan                  = [rgb]::new(210, 180, 140)
+            Thistle              = [rgb]::new(216, 191, 216)
+            Tomato               = [rgb]::new(255, 99, 71)
+            Turquoise            = [rgb]::new(64, 224, 208)
+            Violet               = [rgb]::new(238, 130, 238)
+            Wheat                = [rgb]::new(245, 222, 179)
+            WhiteSmoke           = [rgb]::new(245, 245, 245)
+            YellowGreen          = [rgb]::new(154, 205, 50)
+        }
+        # The default launch ascii : alainQtec. but TODO: add a way to load it from a config instead of hardcoding it.
+        [CliStyler]::Default_Term_Ascii = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('bSUBJQElASVuJW0lbiUgACAAIAAgACAAIAAgAG0lASUBJQElbiVtJW4lCgADJW0lASVuJQMlAyUDJSAAIAAgAG0lbiUgACAAAyVtJQElbiUDJW8lcCVuJQoAAyUDJSAAAyUDJQMlbSUBJQElbiVtJW4lASVuJQMlAyUgAAMlAyVuJW0lbSUBJQElbiUBJQElbiUKAAMlcCUBJW8lAyUDJQMlbSUgAAMlfAADJW0lbiVuJQMlIAADJQMlAyUDJXwAbSVuJQMlbSUBJW8lCgADJW0lASVuJQMlAyVwJXAlbyVwJW4lAyUDJQMlAyVwJQElbyUDJQMlcCVuJQMlASUrJXAlASVuJQoAcCVvJSAAcCVvJXAlASVvJQElASVvJW8lbyVwJW8lASUBJW4lcCUBJQElbyUBJQElbyUBJQElbyUKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABwJW8lCgAiAFEAdQBpAGMAawAgAHAAcgBvAGQAdQBjAHQAaQB2AGUAIAB0AGUAYwBoACIA'));
+        [CliStyler]::WINDOWS_TERMINAL_PATH = [IO.Path]::Combine($env:LocalAppdata, 'Packages', 'Microsoft.WindowsTerminal_8wekyb3d8bbwe', 'LocalState', 'settings.json');
+        # Initialize or Reload $PROFILE and the core functions necessary for displaying your custom prompt.
+        [CliStyler]::PROFILE = [CliStyler]::Get_Profile()
     }
     static hidden [bool] Set_Default_HostUI() {
         $Title = 'PowerShell'
