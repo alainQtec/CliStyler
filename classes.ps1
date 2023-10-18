@@ -26,6 +26,7 @@ class CliStyler {
     static [PsObject] $PSVersn
     static [char] $DirSeparator
     static [string] $Home_Indic
+    static [string] $WindowTitle
     static [string] $leadingChar
     static [string] $trailngChar
     static [IO.FileInfo] $LogFile
@@ -36,7 +37,7 @@ class CliStyler {
     static hidden [string] $WINDOWS_TERMINAL_PATH
     static [Int32] $realLASTEXITCODE = $LASTEXITCODE
     static hidden [PSCustomObject] $TERMINAL_Settings
-    CliStyler() {}
+    CliStyler() { [CliStyler]::Set_Defaults() }
 
     static [void] Initialize() {
         [CliStyler]::Initialize(@())
@@ -55,19 +56,17 @@ class CliStyler {
         Set-Variable -Name Colors -Value $([CliStyler]::colors) -Scope Global -Visibility Public -Option AllScope
         if ($force) {
             # Invoke-Command -ScriptBlock $Load_Profile_Functions
-            [CliStyler]::CurrExitCode = $? -and $([CliStyler]::Set_Default_HostUI())
             [CliStyler]::CurrExitCode = $? -and $([CliStyler]::Create_Prompt_Function())
         } else {
             if (!$([CliStyler]::IsInitialised())) {
                 # Invoke-Command -ScriptBlock $Load_Profile_Functions
-                [CliStyler]::CurrExitCode = $? -and $([CliStyler]::Set_Default_HostUI());
                 [CliStyler]::CurrExitCode = $? -and $([CliStyler]::Create_Prompt_Function())
             } else {
                 Write-Debug "[CliStyler] is already Initialized, Skipping ..."
             }
         }
         Write-Debug -Message "[CliStyler] Displaying a welcome message/MOTD ..."
-        [CliStyler]::DisplayWelcomeMessage()
+        [CliStyler]::Write_Term_Ascii()
     }
     static [void] ResolveRequirements([string[]]$DependencyModules, [bool]$force) {
         # Inspired by: https://dev.to/ansonh/customize-beautify-your-windows-terminal-2022-edition-541l
@@ -412,14 +411,24 @@ class CliStyler {
             WhiteSmoke           = [rgb]::new(245, 245, 245)
             YellowGreen          = [rgb]::new(154, 205, 50)
         }
-        # The default launch ascii : alainQtec. but TODO: add a way to load it from a config instead of hardcoding it.
+        # Set the default launch ascii : alainQtec. but TODO: add a way to load it from a config instead of hardcoding it.
         [CliStyler]::Default_Term_Ascii = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('bSUBJQElASVuJW0lbiUgACAAIAAgACAAIAAgAG0lASUBJQElbiVtJW4lCgADJW0lASVuJQMlAyUDJSAAIAAgAG0lbiUgACAAAyVtJQElbiUDJW8lcCVuJQoAAyUDJSAAAyUDJQMlbSUBJQElbiVtJW4lASVuJQMlAyUgAAMlAyVuJW0lbSUBJQElbiUBJQElbiUKAAMlcCUBJW8lAyUDJQMlbSUgAAMlfAADJW0lbiVuJQMlIAADJQMlAyUDJXwAbSVuJQMlbSUBJW8lCgADJW0lASVuJQMlAyVwJXAlbyVwJW4lAyUDJQMlAyVwJQElbyUDJQMlcCVuJQMlASUrJXAlASVuJQoAcCVvJSAAcCVvJXAlASVvJQElASVvJW8lbyVwJW8lASUBJW4lcCUBJQElbyUBJQElbyUBJQElbyUKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABwJW8lCgAiAFEAdQBpAGMAawAgAHAAcgBvAGQAdQBjAHQAaQB2AGUAIAB0AGUAYwBoACIA'));
         [CliStyler]::WINDOWS_TERMINAL_PATH = [IO.Path]::Combine($env:LocalAppdata, 'Packages', 'Microsoft.WindowsTerminal_8wekyb3d8bbwe', 'LocalState', 'settings.json');
         # Initialize or Reload $PROFILE and the core functions necessary for displaying your custom prompt.
-        [CliStyler]::PROFILE = [CliStyler]::Get_Profile()
+        $p = [PSObject]::new(); Get-Variable PROFILE -ValueOnly | Get-Member -Type NoteProperty | ForEach-Object {
+            $p | Add-Member -Name $_.Name -MemberType NoteProperty -Value ($_.Definition.split('=')[1] -as [IO.FileInfo])
+        }
+        [CliStyler]::PROFILE = $p
+        # Set Host UI DEFAULS
+        [CliStyler]::WindowTitle = [CliStyler]::GetWindowTitle()
     }
-    static hidden [bool] Set_Default_HostUI() {
-        $Title = 'PowerShell'
+    static [void] Set_Default_HostU() {
+        (Get-Variable -Name Host -ValueOnly).UI.RawUI.WindowTitle = [CliStyler]::WindowTitle
+        (Get-Variable -Name Host -ValueOnly).UI.RawUI.ForegroundColor = "White"
+        (Get-Variable -Name Host -ValueOnly).PrivateData.ErrorForegroundColor = "DarkGray"
+    }
+    static [string] GetWindowTitle() {
+        $Title = ([CliStyler]::GetCurrentProces().Path -as [IO.FileInfo]).BaseName
         $user = [Security.Principal.WindowsIdentity]::GetCurrent()
         [void][Security.Principal.WindowsIdentity]::GetAnonymous()
         $ob = [Security.Principal.WindowsPrincipal]::new($user)
@@ -440,21 +449,19 @@ class CliStyler {
         # Admin indicator not neded, since Windows11 build 22557.1
         if ($UserRole.HasAdminPriv) { $Title += ' (Admin)' }
         if ($UserRole.HasUserPriv -and !($UserRole.HasAdminPriv)) { $Title += ' (User)' }
-        (Get-Variable -Name Host).Value.UI.RawUI.WindowTitle = "$Title"
-        (Get-Variable -Name Host).Value.UI.RawUI.ForegroundColor = "White"
-        (Get-Variable -Name Host).Value.PrivateData.ErrorForegroundColor = "DarkGray"
-        return $true
+        return $Title
     }
-    static hidden [void] DisplayWelcomeMessage() {
-        # Shows Banner # or MOTD ...
-        if (([CliStyler]::CurrExitCode) -and $([CliStyler]::IsInitialised())) {
-            Write-Host ''
-            try {
-                [CliStyler]::Write_RGB([CliStyler]::Default_Term_Ascii, 'SlateBlue')
-            } catch {
-                # IncOMpatible
+    static [void] Write_Term_Ascii() {
+        if ($null -eq ([CliStyler]::PSVersn)) { [CliStyler]::Set_Defaults() }
+        [double]$MinVern = 5.1
+        [double]$CrVersn = ([CliStyler]::PSVersn | Select-Object @{l = 'vern'; e = { "{0}.{1}" -f $_.PSVersion.Major, $_.PSVersion.Minor } }).vern
+        if ($null -ne ([CliStyler]::colors)) {
+            Write-Host ''; # i.e: Writing to the console in 24-bit colors can only work with PowerShell versions lower than '5.1'
+            if ($CrVersn -gt $MinVern) {
                 # Write-ColorOutput -ForegroundColor DarkCyan $([CliStyler]::Default_Term_Ascii)
                 Write-Host "$([CliStyler]::Default_Term_Ascii)" -ForegroundColor Green
+            } else {
+                [CliStyler]::Write_RGB([CliStyler]::Default_Term_Ascii, 'SlateBlue')
             }
             Write-Host ''
         }
@@ -489,15 +496,14 @@ class CliStyler {
             throw [System.Management.Automation.RuntimeException]::new("Writing to the console in 24-bit colors can only work with PowerShell versions lower than '5.1 build 14931' or above.`nBut yours is '$VersionNum' build '$psBuild'")
         }
     }
-    static [psobject] GetPsEngine() {
-        #get the current PowerShell process and the file that launched it
-        $chost = Get-Variable Host -ValueOnly; $engine = Get-Process -Id $(Get-Variable pid -ValueOnly) | Get-Item
+    static [PsObject] GetCurrentProces() {
+        $chost = Get-Variable Host -ValueOnly; $process = Get-Process -Id $(Get-Variable pid -ValueOnly) | Get-Item
         $versionTable = Get-Variable PSVersionTable -ValueOnly
-        return [pscustomobject]@{
-            Path           = $engine.Fullname
-            FileVersion    = $engine.VersionInfo.FileVersion
+        return [PsObject]@{
+            Path           = $process.Fullname
+            FileVersion    = $process.VersionInfo.FileVersion
             PSVersion      = $versionTable.PSVersion.ToString()
-            ProductVersion = $engine.VersionInfo.ProductVersion
+            ProductVersion = $process.VersionInfo.ProductVersion
             Edition        = $versionTable.PSEdition
             Host           = $chost.name
             Culture        = $chost.CurrentCulture
@@ -618,12 +624,6 @@ class CliStyler {
             }
         }
         return $outPath
-    }
-    static hidden [PSObject] Get_Profile() {
-        $p = [PSObject]::new(); Get-Variable PROFILE -ValueOnly | Get-Member -Type NoteProperty | ForEach-Object {
-            $p | Add-Member -Name $_.Name -MemberType NoteProperty -Value ($_.Definition.split('=')[1] -as [IO.FileInfo])
-        }
-        return $p
     }
 }
 #endregion Classes
