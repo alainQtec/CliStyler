@@ -21,6 +21,7 @@ class CliStyler {
     static [string] $dt
     static [string] $b1
     static [string] $b2
+    static [string] $ompJson
     static [char] $swiglyChar
     static [Hashtable] $colors
     static [PsObject] $PSVersn
@@ -37,8 +38,11 @@ class CliStyler {
     static hidden [string] $WINDOWS_TERMINAL_PATH
     static [Int32] $realLASTEXITCODE = $LASTEXITCODE
     static hidden [PSCustomObject] $TERMINAL_Settings
-    CliStyler() { [CliStyler]::Set_Defaults() }
 
+    static [CliStyler] Create() {
+        [CliStyler]::Set_Defaults()
+        return New-Object CliStyler
+    }
     static [void] Initialize() {
         [CliStyler]::Initialize(@())
     }
@@ -240,17 +244,32 @@ class CliStyler {
         $progressPreference = $PPref
         $InformationPreference = $IPref
     }
+    static hidden [string] Get_OmpJson() {
+        return [CliStyler]::Get_OmpJson('omp.json', [uri]::new('https://gist.github.com/alainQtec/b106f0e618bb9bbef86611824fc37825'))
+    }
+    static hidden [string] Get_OmpJson([string]$fileName, [uri]$gisturi) {
+        if ([string]::IsNullOrWhiteSpace(([CliStyler]::ompJson))) {
+            Write-Verbose "Fetching the latest ompJson (One-time only)"; # Fetch it Once only, To Avoid spamming the github API :)
+            $gistId = $gisturi.Segments[-1]
+            [CliStyler]::ompJson = (Invoke-RestMethod -Method Get https://api.github.com/gists/$gistId).files."$fileName".content
+        }
+        # todo: add importing json from file if it exists
+        return ([CliStyler]::ompJson)
+    }
     static hidden [void] InstallOhMyPosh() {
         $OH_MY_POSH_PATH = $null
-        Set-Variable -Name OH_MY_POSH_PATH -Option Constant -Value ([IO.Path]::Combine($env:LOCALAPPDATA, 'Programs', 'oh-my-posh'))
+        New-Variable -Name OH_MY_POSH_PATH -Scope Global -Option Constant -Value ([IO.Path]::Combine($env:LOCALAPPDATA, 'Programs', 'oh-my-posh')) -Force
         if (!(Test-Path -Path $OH_MY_POSH_PATH)) {
             # TODO: #13 Check error handling
-            Import-PackageProvider -Name WinGet
-            Install-Package -Name JanDeDobbeleer.OhMyPosh -ProviderName WinGet
+            $OmpInstaller = (New-Object System.Net.WebClient).DownloadString('https://ohmyposh.dev/install.ps1');
+            $OmpInstaller = [ScriptBlock]::Create($OmpInstaller); $OmpInstaller.Invoke()
         }
 
         if (!(Test-Path -Path "$OH_MY_POSH_PATH/themes/p10k_classic.omp.json")) {
-            Invoke-WebRequest -Uri https://gist.githubusercontent.com/AnsonH/55858833ddcfbb7946f42740ac720cd4/raw/7a29a405eb191f66151906b748bd286d75cebbf3/p10k_classic.omp.json -OutFile ([IO.Path]::Combine($OH_MY_POSH_PATH, 'themes', 'p10k_classic.omp.json'))
+            if ([string]::IsNullOrWhiteSpace(([CliStyler]::ompJson))) {
+                [CliStyler]::ompJson = [CliStyler]::Get_OmpJson()
+            }
+            Set-Content -Path ([IO.Path]::Combine($OH_MY_POSH_PATH, 'themes', 'p10k_classic.omp.json')) -Value ([CliStyler]::ompJson) -Force
         }
         Write-Verbose "Adding OH_MY_POSH To Profile ..."
 
@@ -258,7 +277,7 @@ class CliStyler {
         $sb.AppendLine('# Enable Oh My Posh Theme Engine')
         $sb.AppendLine('oh-my-posh --init --shell pwsh --config ~/AppData/Local/Programs/oh-my-posh/themes/p10k_classic.omp.json | Invoke-Expression')
         $prof = Get-Variable -Name PROFILE -Scope Global; $PROFILE_OPTIONS = $null;
-        Set-Variable -Name PROFILE_OPTIONS -Option Constant -Value $sb.ToString();
+        New-Variable -Name PROFILE_OPTIONS -Option Constant -Value $sb.ToString() -Scope Global;
         if (!(Select-String -Path $prof -Pattern "oh-my-posh" -SimpleMatch -Quiet)) {
             # TODO: #3 Move configuration to directory instead of manipulating original profile file
             Add-Content -Path $prof -Value $PROFILE_OPTIONS
