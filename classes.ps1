@@ -51,30 +51,9 @@ class CliStyler {
         [CliStyler]::Initialize(@(), $false)
     }
     static [void] Initialize([string[]]$DependencyModules, [bool]$force) {
+        Write-Verbose '[CliStyler] Set variable defaults'
         [CliStyler]::Set_Defaults()
-        Write-Verbose '[CliStyler] Setting up required resources ... (One-time process)'
-        [CliStyler]::ResolveRequirements($DependencyModules, $force); [CliStyler]::CurrExitCode = $true # RESET current exit code.
-
-        Write-Verbose '[CliStyler] Load configuration settings ...'
-        [CliStyler]::LoadConfiguration()
-
-        Set-Variable -Name Colors -Value $([CliStyler]::colors) -Scope Global -Visibility Public -Option AllScope
-        if ($force) {
-            # Invoke-Command -ScriptBlock $Load_Profile_Functions
-            [CliStyler]::CurrExitCode = $? -and $([CliStyler]::Create_Prompt_Function())
-        } else {
-            if (!$([CliStyler]::IsInitialised())) {
-                # Invoke-Command -ScriptBlock $Load_Profile_Functions
-                [CliStyler]::CurrExitCode = $? -and $([CliStyler]::Create_Prompt_Function())
-            } else {
-                Write-Debug "[CliStyler] is already Initialized, Skipping ..."
-            }
-        }
-        [CliStyler]::Set_TerminalUI()
-        Write-Debug -Message "[CliStyler] Displaying a welcome message/MOTD ..."
-        [CliStyler]::Write_Term_Ascii()
-    }
-    static [void] ResolveRequirements([string[]]$DependencyModules, [bool]$force) {
+        Write-Verbose '[CliStyler] Resolving Requirements ... (a one-time process)'
         # Inspired by: https://dev.to/ansonh/customize-beautify-your-windows-terminal-2022-edition-541l
         if ($null -eq (Get-PSRepository -Name PSGallery -ErrorAction Ignore)) {
             throw 'PSRepository named PSGallery was Not found!'
@@ -96,11 +75,10 @@ class CliStyler {
                 Import-Module -Name $_ -WarningAction SilentlyContinue
             }
         )
-
         # BeautifyTerminal :
         [CliStyler]::AddColorScheme()
         [CliStyler]::InstallNerdFont()
-        [CliStyler]::InstallOhMyPosh()
+        [CliStyler]::InstallOhMyPosh() # instead of: winget install JanDeDobbeleer.OhMyPosh
         Set-PSReadLineOption -PredictionSource HistoryAndPlugin -PredictionViewStyle ListView # Optional
         # WinFetch
         Install-Script -Name winfetch -AcceptLicense
@@ -111,8 +89,28 @@ class CliStyler {
         (Get-Content $env:USERPROFILE/.config/winfetch/config.ps1).Replace('# $ShowDisks = @("*")', '$ShowDisks = @("*")') | Set-Content $env:USERPROFILE/.config/winfetch/config.ps1
         (Get-Content $env:USERPROFILE/.config/winfetch/config.ps1).Replace('# $memorystyle', '$memorystyle') | Set-Content $env:USERPROFILE/.config/winfetch/config.ps1
         (Get-Content $env:USERPROFILE/.config/winfetch/config.ps1).Replace('# $diskstyle', '$diskstyle') | Set-Content $env:USERPROFILE/.config/winfetch/config.ps1
+        # RESET current exit code:
+        [CliStyler]::CurrExitCode = $true
 
-        # winget install JanDeDobbeleer.OhMyPosh
+        Write-Verbose '[CliStyler] Load configuration settings ...'
+        [CliStyler]::LoadConfiguration()
+
+        Set-Variable -Name Colors -Value $([CliStyler]::colors) -Scope Global -Visibility Public -Option AllScope
+        if ($force) {
+            # Invoke-Command -ScriptBlock $Load_Profile_Functions
+            [CliStyler]::CurrExitCode = $? -and $([CliStyler]::Create_Prompt_Function())
+        } else {
+            if (!$([CliStyler]::IsInitialised())) {
+                # Invoke-Command -ScriptBlock $Load_Profile_Functions
+                [CliStyler]::CurrExitCode = $? -and $([CliStyler]::Create_Prompt_Function())
+            } else {
+                Write-Debug "[CliStyler] is already Initialized, Skipping ..."
+            }
+        }
+        [void][CliStyler]::CreatePsProfile()
+        [CliStyler]::Set_TerminalUI()
+        Write-Debug -Message "[CliStyler] Displaying a welcome message/MOTD ..."
+        [CliStyler]::Write_Term_Ascii()
     }
     static [bool] IsInitialised() {
         return (Get-Variable -Name IsPromptInitialised -Scope Global).Value
@@ -254,8 +252,7 @@ class CliStyler {
         }
     }
     static [string] GetOmpJson([string]$fileName, [uri]$gisturi) {
-        $currentjson = "$([CliStyler]::ompJson) ".Trim()
-        if ([string]::IsNullOrWhiteSpace($currentjson)) {
+        if ([string]::IsNullOrWhiteSpace("$([CliStyler]::ompJson) ".Trim())) {
             Write-Verbose "Fetching the latest omp.json (One-time only)"; # Fetch it Once only, To Avoid spamming the github API :)
             $gistId = $gisturi.Segments[-1]; $jsoncontent = $(Invoke-RestMethod -Method Get "https://api.github.com/gists/$gistId" -Verbose:$false).files."$fileName".content
             if ([string]::IsNullOrWhiteSpace($jsoncontent)) {
@@ -263,35 +260,44 @@ class CliStyler {
             }
             [CliStyler]::ompJson = $jsoncontent
         }
-        # todo: add importing json from file if it exists
-        return ([CliStyler]::ompJson)
+        return [CliStyler]::ompJson
     }
     static hidden [void] InstallOhMyPosh() {
         $ompdir = [IO.DirectoryInfo]::new((Get-Variable OH_MY_POSH_PATH -Scope Global -ValueOnly))
-        if (!$ompdir.Exists) {
-            # TODO: #13 Check error handling
+        if (!$ompdir.Exists) { [void][CliStyler]::New_Directory($ompdir.FullName) }
+        if ([bool](Get-Command oh-my-posh -Type Application -ErrorAction Ignore)) {
             $OmpInstaller = (New-Object System.Net.WebClient).DownloadString('https://ohmyposh.dev/install.ps1');
             $OmpInstaller = [ScriptBlock]::Create($OmpInstaller); $OmpInstaller.Invoke()
         } else {
-            New-Item $ompdir
+            Write-Verbose "oh-my-posh is already Installed; moing on ..."
         }
-        if ([string]::IsNullOrWhiteSpace(([CliStyler]::ompJson))) {
-            [CliStyler]::ompJson = [CliStyler]::GetOmpJson()
-        }
+        if ([string]::IsNullOrWhiteSpace("$([CliStyler]::ompJson) ".Trim())) { [CliStyler]::ompJson = [CliStyler]::GetOmpJson() }
         if (![CliStyler]::OmpJsonFile.Exists) {
             Set-Content -Path ([CliStyler]::OmpJsonFile.FullName) -Value ([CliStyler]::ompJson) -Force
         }
         Write-Verbose "Adding OH_MY_POSH To Profile ..."
 
         $sb = [System.Text.StringBuilder]::new()
-        $sb.AppendLine('# Enable Oh My Posh Theme Engine')
-        $sb.AppendLine('oh-my-posh --init --shell pwsh --config ~/AppData/Local/Programs/oh-my-posh/themes/p10k_classic.omp.json | Invoke-Expression')
-        $prof = Get-Variable -Name PROFILE -Scope Global; $PROFILE_OPTIONS = $null;
+        [void]$sb.AppendLine('# Enable Oh My Posh Theme Engine')
+        [void]$sb.AppendLine('oh-my-posh --init --shell pwsh --config ~/AppData/Local/Programs/oh-my-posh/themes/p10k_classic.omp.json | Invoke-Expression')
+        $PROFILE_OPTIONS = $null; $prof = [CliStyler]::CreatePsProfile();
         New-Variable -Name PROFILE_OPTIONS -Option Constant -Value $sb.ToString() -Scope Global;
-        if (!(Select-String -Path $prof -Pattern "oh-my-posh" -SimpleMatch -Quiet)) {
+        if (!(Select-String -Path $prof.FullName -Pattern "oh-my-posh" -SimpleMatch -Quiet)) {
             # TODO: #3 Move configuration to directory instead of manipulating original profile file
-            Add-Content -Path $prof -Value $PROFILE_OPTIONS
+            Add-Content -Path $prof.FullName -Value $PROFILE_OPTIONS
         }
+    }
+    static [IO.FileInfo] CreatePsProfile() {
+        # This method will only create a new profile if it does not already exist.
+        $prof = [IO.FileInfo]::New((Get-Variable -Name PROFILE -Scope Global -ValueOnly));
+        if (!$prof.Exists) { $prof = [CliStyler]::CreatePsProfile($prof) }
+        return $prof
+    }
+    static [IO.FileInfo] CreatePsProfile([IO.FileInfo]$file) {
+        if (!$file.Directory.Exists) { [void][CliStyler]::New_Directory($file.Directory.FullName) }
+        $file = New-Item -ItemType File -Path $file
+        # todo: add stuff to profile
+        return $file
     }
     static hidden [void] Set_Defaults() {
         [CliStyler]::Default_Dependencies = @('Terminal-Icons', 'PSReadline', 'Pester', 'Posh-git', 'PSWinGlue', 'PowerShellForGitHub');
@@ -657,6 +663,14 @@ class CliStyler {
             }
         }
         return $outPath
+    }
+    static hidden [System.IO.DirectoryInfo] New_Directory([string]$Path) {
+        $nF = @(); $d = [System.IO.DirectoryInfo]::New((Get-Variable ExecutionContext).Value.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path))
+        if ($PSCmdlet.ShouldProcess("Creating Directory '$($d.FullName)' ...", '', '')) {
+            while (!$d.Exists) { $nF += $d; $d = $d.Parent }
+            [Array]::Reverse($nF); $nF | ForEach-Object { $_.Create() }
+        }
+        return $d
     }
 }
 #endregion Classes
