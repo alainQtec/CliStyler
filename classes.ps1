@@ -34,6 +34,7 @@ class CliStyler {
     static [string] $Default_Term_Ascii
     static hidden [PsObject] $PROFILE
     static hidden [bool] $CurrExitCode
+    static hidden [IO.FileInfo] $OmpJsonFile
     static [string[]] $Default_Dependencies
     static hidden [string] $WINDOWS_TERMINAL_PATH
     static [Int32] $realLASTEXITCODE = $LASTEXITCODE
@@ -244,32 +245,41 @@ class CliStyler {
         $progressPreference = $PPref
         $InformationPreference = $IPref
     }
-    static hidden [string] Get_OmpJson() {
-        return [CliStyler]::Get_OmpJson('omp.json', [uri]::new('https://gist.github.com/alainQtec/b106f0e618bb9bbef86611824fc37825'))
+    static [string] GetOmpJson() {
+        if ([CliStyler]::OmpJsonFile.Exists) {
+            [CliStyler]::ompJson = Get-Content -Path ([CliStyler]::OmpJsonFile.FullName)
+            return [CliStyler]::ompJson
+        } else {
+            return [CliStyler]::GetOmpJson('omp.json', [uri]::new('https://gist.github.com/alainQtec/b106f0e618bb9bbef86611824fc37825'))
+        }
     }
-    static hidden [string] Get_OmpJson([string]$fileName, [uri]$gisturi) {
-        if ([string]::IsNullOrWhiteSpace(([CliStyler]::ompJson))) {
-            Write-Verbose "Fetching the latest ompJson (One-time only)"; # Fetch it Once only, To Avoid spamming the github API :)
-            $gistId = $gisturi.Segments[-1]
-            [CliStyler]::ompJson = (Invoke-RestMethod -Method Get https://api.github.com/gists/$gistId).files."$fileName".content
+    static [string] GetOmpJson([string]$fileName, [uri]$gisturi) {
+        $currentjson = "$([CliStyler]::ompJson) ".Trim()
+        if ([string]::IsNullOrWhiteSpace($currentjson)) {
+            Write-Verbose "Fetching the latest omp.json (One-time only)"; # Fetch it Once only, To Avoid spamming the github API :)
+            $gistId = $gisturi.Segments[-1]; $jsoncontent = $(Invoke-RestMethod -Method Get "https://api.github.com/gists/$gistId" -Verbose:$false).files."$fileName".content
+            if ([string]::IsNullOrWhiteSpace($jsoncontent)) {
+                Throw [System.IO.InvalidDataException]::NEW('FAILED to get valid json string gtom github gist')
+            }
+            [CliStyler]::ompJson = $jsoncontent
         }
         # todo: add importing json from file if it exists
         return ([CliStyler]::ompJson)
     }
     static hidden [void] InstallOhMyPosh() {
-        $OH_MY_POSH_PATH = $null
-        New-Variable -Name OH_MY_POSH_PATH -Scope Global -Option Constant -Value ([IO.Path]::Combine($env:LOCALAPPDATA, 'Programs', 'oh-my-posh')) -Force
-        if (!(Test-Path -Path $OH_MY_POSH_PATH)) {
+        $ompdir = [IO.DirectoryInfo]::new((Get-Variable OH_MY_POSH_PATH -Scope Global -ValueOnly))
+        if (!$ompdir.Exists) {
             # TODO: #13 Check error handling
             $OmpInstaller = (New-Object System.Net.WebClient).DownloadString('https://ohmyposh.dev/install.ps1');
             $OmpInstaller = [ScriptBlock]::Create($OmpInstaller); $OmpInstaller.Invoke()
+        } else {
+            New-Item $ompdir
         }
-
-        if (!(Test-Path -Path "$OH_MY_POSH_PATH/themes/p10k_classic.omp.json")) {
-            if ([string]::IsNullOrWhiteSpace(([CliStyler]::ompJson))) {
-                [CliStyler]::ompJson = [CliStyler]::Get_OmpJson()
-            }
-            Set-Content -Path ([IO.Path]::Combine($OH_MY_POSH_PATH, 'themes', 'p10k_classic.omp.json')) -Value ([CliStyler]::ompJson) -Force
+        if ([string]::IsNullOrWhiteSpace(([CliStyler]::ompJson))) {
+            [CliStyler]::ompJson = [CliStyler]::GetOmpJson()
+        }
+        if (![CliStyler]::OmpJsonFile.Exists) {
+            Set-Content -Path ([CliStyler]::OmpJsonFile.FullName) -Value ([CliStyler]::ompJson) -Force
         }
         Write-Verbose "Adding OH_MY_POSH To Profile ..."
 
@@ -441,6 +451,9 @@ class CliStyler {
         [CliStyler]::PROFILE = $p
         # Set Host UI DEFAULS
         [CliStyler]::WindowTitle = [CliStyler]::GetWindowTitle()
+        $OH_MY_POSH_PATH = $null
+        New-Variable -Name OH_MY_POSH_PATH -Scope Global -Option Constant -Value ([IO.Path]::Combine($env:LOCALAPPDATA, 'Programs', 'oh-my-posh')) -Force
+        [CliStyler]::OmpJsonFile = [IO.FileInfo]::New([IO.Path]::Combine($OH_MY_POSH_PATH, 'themes', 'p10k_classic.omp.json'))
     }
     static [void] Set_TerminalUI() {
         (Get-Variable -Name Host -ValueOnly).UI.RawUI.WindowTitle = [CliStyler]::WindowTitle
