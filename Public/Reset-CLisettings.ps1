@@ -1,19 +1,12 @@
 #!/usr/bin/env pwsh
 function Reset-CLIsettings {
+    <#
+    .SYNOPSIS
+        Reset everything to default values
+    #>
     [CmdletBinding()]
-    param (
-        
-    )
-    
-    begin {
-        
-    }
-    
+    param ()
     process {
-        
-    }
-    
-    end {
-        
+        [CliStyler]::Create()
     }
 }
