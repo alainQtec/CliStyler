@@ -243,17 +243,29 @@ class CliStyler {
         $progressPreference = $PPref
         $InformationPreference = $IPref
     }
-    static [string] GetOmpJson() {
-        if ([CliStyler]::OmpJsonFile.Exists) {
-            [CliStyler]::ompJson = Get-Content -Path ([CliStyler]::OmpJsonFile.FullName)
-            return [CliStyler]::ompJson
+    static [void] SetOmpJson() {
+        if ($null -eq [CliStyler]::OmpJsonFile.FullName) { [CliStyler]::Set_Defaults() }
+        [CliStyler]::OmpJsonFile = [IO.FileInfo]::New([IO.Path]::Combine($(Get-Variable OH_MY_POSH_PATH -Scope Global -ValueOnly), 'themes', 'p10k_classic.omp.json'))
+        if (![CliStyler]::OmpJsonFile.Exists) {
+            if (![CliStyler]::OmpJsonFile.Directory.Exists) { [void][CliStyler]::Create_Directory([CliStyler]::OmpJsonFile.Directory.FullName) }
+            [CliStyler]::OmpJsonFile = New-Item -ItemType File -Path ([IO.Path]::Combine([CliStyler]::OmpJsonFile.Directory.FullName, [CliStyler]::OmpJsonFile.Name))
+            [CliStyler]::GetOmpJson('omp.json', [uri]::new('https://gist.github.com/alainQtec/b106f0e618bb9bbef86611824fc37825')) | Out-File ([CliStyler]::OmpJsonFile.FullName) -Encoding utf8
         } else {
-            return [CliStyler]::GetOmpJson('omp.json', [uri]::new('https://gist.github.com/alainQtec/b106f0e618bb9bbef86611824fc37825'))
+            Write-Host "Found $([CliStyler]::OmpJsonFile)" -ForegroundColor Green
         }
+        [CliStyler]::ompJson = Get-Content -Path ([CliStyler]::OmpJsonFile.FullName)
+        # try to Beautify the json:
+        [CliStyler]::ompJson = [CliStyler]::ompJson.Replace('",   "', "`",`n`t`"").Replace('"   },   {', "`"`n`t},`n`t{").Replace('     ', "`n`t").Replace("       ", "`n`t`t").Replace('[   {', "[`n`t{").Replace('"   }', "`"   }").Replace('{   "', "{`n`t`"")
+        [CliStyler]::ompJson = [CliStyler]::ompJson.Split("`n").Trim().Where({ ![string]::IsNullOrEmpty($_) })
+        [CliStyler]::ompJson = [CliStyler]::ompJson.Replace('{ "', "{`n  `"").Replace('", "',"`",`n`t`"").Replace(': [ {', ": [`b{`t`t").Replace(' }, {', " },`b{`t`t").Replace(' } ],', "`n} ],`b")
+    }
+    static [string] GetOmpJson() {
+        [CliStyler]::SetOmpJson()
+        return [CliStyler]::ompJson
     }
     static [string] GetOmpJson([string]$fileName, [uri]$gisturi) {
         if ([string]::IsNullOrWhiteSpace("$([CliStyler]::ompJson) ".Trim())) {
-            Write-Verbose "Fetching the latest omp.json (One-time only)"; # Fetch it Once only, To Avoid spamming the github API :)
+            Write-Host "Fetching the latest omp.json (One-time only)" -ForegroundColor Green; # Fetch it Once only, To Avoid spamming the github API :)
             $gistId = $gisturi.Segments[-1]; $jsoncontent = $(Invoke-RestMethod -Method Get "https://api.github.com/gists/$gistId" -Verbose:$false).files."$fileName".content
             if ([string]::IsNullOrWhiteSpace($jsoncontent)) {
                 Throw [System.IO.InvalidDataException]::NEW('FAILED to get valid json string gtom github gist')
@@ -262,10 +274,10 @@ class CliStyler {
         }
         return [CliStyler]::ompJson
     }
-    static hidden [void] InstallOhMyPosh() {
+    static [void] InstallOhMyPosh() {
         $ompdir = [IO.DirectoryInfo]::new((Get-Variable OH_MY_POSH_PATH -Scope Global -ValueOnly))
-        if (!$ompdir.Exists) { [void][CliStyler]::New_Directory($ompdir.FullName) }
-        if ([bool](Get-Command oh-my-posh -Type Application -ErrorAction Ignore)) {
+        if (!$ompdir.Exists) { [void][CliStyler]::Create_Directory($ompdir.FullName) }
+        if (![bool](Get-Command oh-my-posh -Type Application -ErrorAction Ignore)) {
             $OmpInstaller = (New-Object System.Net.WebClient).DownloadString('https://ohmyposh.dev/install.ps1');
             $OmpInstaller = [ScriptBlock]::Create($OmpInstaller); $OmpInstaller.Invoke()
         } else {
@@ -294,7 +306,7 @@ class CliStyler {
         return $prof
     }
     static [IO.FileInfo] CreatePsProfile([IO.FileInfo]$file) {
-        if (!$file.Directory.Exists) { [void][CliStyler]::New_Directory($file.Directory.FullName) }
+        if (!$file.Directory.Exists) { [void][CliStyler]::Create_Directory($file.Directory.FullName) }
         $file = New-Item -ItemType File -Path $file
         # todo: add stuff to profile
         return $file
@@ -457,9 +469,10 @@ class CliStyler {
         [CliStyler]::PROFILE = $p
         # Set Host UI DEFAULS
         [CliStyler]::WindowTitle = [CliStyler]::GetWindowTitle()
-        $OH_MY_POSH_PATH = $null
-        New-Variable -Name OH_MY_POSH_PATH -Scope Global -Option Constant -Value ([IO.Path]::Combine($env:LOCALAPPDATA, 'Programs', 'oh-my-posh')) -Force
-        [CliStyler]::OmpJsonFile = [IO.FileInfo]::New([IO.Path]::Combine($OH_MY_POSH_PATH, 'themes', 'p10k_classic.omp.json'))
+        if (!(Get-Variable OH_MY_POSH_PATH -ValueOnly)) {
+            New-Variable -Name OH_MY_POSH_PATH -Scope Global -Option Constant -Value ([IO.Path]::Combine($env:LOCALAPPDATA, 'Programs', 'oh-my-posh')) -Force
+        }
+        [CliStyler]::OmpJsonFile = [IO.FileInfo]::New([IO.Path]::Combine($(Get-Variable OH_MY_POSH_PATH -Scope Global -ValueOnly), 'themes', 'p10k_classic.omp.json'))
     }
     static [void] Set_TerminalUI() {
         (Get-Variable -Name Host -ValueOnly).UI.RawUI.WindowTitle = [CliStyler]::WindowTitle
@@ -664,12 +677,11 @@ class CliStyler {
         }
         return $outPath
     }
-    static hidden [System.IO.DirectoryInfo] New_Directory([string]$Path) {
+    static hidden [System.IO.DirectoryInfo] Create_Directory([string]$Path) {
         $nF = @(); $d = [System.IO.DirectoryInfo]::New((Get-Variable ExecutionContext).Value.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path))
-        if ($PSCmdlet.ShouldProcess("Creating Directory '$($d.FullName)' ...", '', '')) {
-            while (!$d.Exists) { $nF += $d; $d = $d.Parent }
-            [Array]::Reverse($nF); $nF | ForEach-Object { $_.Create() }
-        }
+        Write-Verbose "Creating Directory '$($d.FullName)' ..."
+        while (!$d.Exists) { $nF += $d; $d = $d.Parent }
+        [Array]::Reverse($nF); $nF | ForEach-Object { $_.Create() }
         return $d
     }
 }
