@@ -1,5 +1,6 @@
 #!/usr/bin/env pwsh
 #region    Classes
+
 class RGB {
     [ValidateRange(0, 255)]
     [int]$Red
@@ -686,6 +687,7 @@ class CliStyler {
         return $d
     }
 }
+
 #endregion Classes
 
 $Private = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -Filter "*.ps1" -ErrorAction SilentlyContinue
