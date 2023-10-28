@@ -245,13 +245,13 @@ class CliStyler {
         $progressPreference = $PPref
         $InformationPreference = $IPref
     }
-    static [void] SetOmpJson() {
+    static [void] set_omp_Json() {
         if ($null -eq [CliStyler]::OmpJsonFile.FullName) { [CliStyler]::Set_Defaults() }
         [CliStyler]::OmpJsonFile = [IO.FileInfo]::New([IO.Path]::Combine($(Get-Variable OH_MY_POSH_PATH -Scope Global -ValueOnly), 'themes', 'p10k_classic.omp.json'))
         if (![CliStyler]::OmpJsonFile.Exists) {
             if (![CliStyler]::OmpJsonFile.Directory.Exists) { [void][CliStyler]::Create_Directory([CliStyler]::OmpJsonFile.Directory.FullName) }
             [CliStyler]::OmpJsonFile = New-Item -ItemType File -Path ([IO.Path]::Combine([CliStyler]::OmpJsonFile.Directory.FullName, [CliStyler]::OmpJsonFile.Name))
-            [CliStyler]::GetOmpJson('omp.json', [uri]::new('https://gist.github.com/alainQtec/b106f0e618bb9bbef86611824fc37825')) | Out-File ([CliStyler]::OmpJsonFile.FullName) -Encoding utf8
+            [CliStyler]::get_omp_Json('omp.json', [uri]::new('https://gist.github.com/alainQtec/b106f0e618bb9bbef86611824fc37825')) | Out-File ([CliStyler]::OmpJsonFile.FullName) -Encoding utf8
         } else {
             Write-Host "Found $([CliStyler]::OmpJsonFile)" -ForegroundColor Green
         }
@@ -261,11 +261,11 @@ class CliStyler {
         [CliStyler]::ompJson = [CliStyler]::ompJson.Split("`n").Trim().Where({ ![string]::IsNullOrEmpty($_) })
         [CliStyler]::ompJson = [CliStyler]::ompJson.Replace('{ "', "{`n  `"").Replace('", "',"`",`n`t`"").Replace(': [ {', ": [`b{`t`t").Replace(' }, {', " },`b{`t`t").Replace(' } ],', "`n} ],`b")
     }
-    static [string] GetOmpJson() {
-        [CliStyler]::SetOmpJson()
+    static [string] get_omp_Json() {
+        [CliStyler]::set_omp_Json()
         return [CliStyler]::ompJson
     }
-    static [string] GetOmpJson([string]$fileName, [uri]$gisturi) {
+    static [string] get_omp_Json([string]$fileName, [uri]$gisturi) {
         if ([string]::IsNullOrWhiteSpace("$([CliStyler]::ompJson) ".Trim())) {
             Write-Host "Fetching the latest omp.json (One-time only)" -ForegroundColor Green; # Fetch it Once only, To Avoid spamming the github API :)
             $gistId = $gisturi.Segments[-1]; $jsoncontent = $(Invoke-RestMethod -Method Get "https://api.github.com/gists/$gistId" -Verbose:$false).files."$fileName".content
@@ -285,7 +285,7 @@ class CliStyler {
         } else {
             Write-Verbose "oh-my-posh is already Installed; moing on ..."
         }
-        if ([string]::IsNullOrWhiteSpace("$([CliStyler]::ompJson) ".Trim())) { [CliStyler]::ompJson = [CliStyler]::GetOmpJson() }
+        if ([string]::IsNullOrWhiteSpace("$([CliStyler]::ompJson) ".Trim())) { [CliStyler]::ompJson = [CliStyler]::get_omp_Json() }
         if (![CliStyler]::OmpJsonFile.Exists) {
             Set-Content -Path ([CliStyler]::OmpJsonFile.FullName) -Value ([CliStyler]::ompJson) -Force
         }
