@@ -1,6 +1,11 @@
 #!/usr/bin/env pwsh
 #region    Classes
-
+enum HostOS {
+    Windows
+    Linux
+    MacOS
+    UNKNOWN
+}
 class RGB {
     [ValidateRange(0, 255)]
     [int]$Red
@@ -23,6 +28,7 @@ class CliStyler {
     static [string] $dt
     static [string] $b1
     static [string] $b2
+    static [HostOs] $HostOS
     static [string] $ompJson
     static [char] $swiglyChar
     static [Hashtable] $colors
@@ -109,7 +115,7 @@ class CliStyler {
                 Write-Debug "[CliStyler] is already Initialized, Skipping ..."
             }
         }
-        [void][CliStyler]::CreatePsProfile()
+        [void][CliStyler]::GetPsProfile() # create the $profile file if it does not exist
         [CliStyler]::Set_TerminalUI()
         Write-Debug -Message "[CliStyler] Displaying a welcome message/MOTD ..."
         [CliStyler]::Write_Term_Ascii()
@@ -224,8 +230,6 @@ class CliStyler {
                 Import-Module -Name Appx -UseWindowsPowerShell -Verbose:$false -WarningAction SilentlyContinue
             }
         }
-        # Prevent tsl errors
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         Write-Host "[0/3] Downloading WinGet and its dependencies ..." -ForegroundColor Green
         Invoke-WebRequest -Uri https://aka.ms/getwinget -OutFile $wngt
         Invoke-WebRequest -Uri https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx -OutFile $deps[0]
@@ -245,7 +249,119 @@ class CliStyler {
         $progressPreference = $PPref
         $InformationPreference = $IPref
     }
-    static [void] set_omp_Json() {
+    static [string] get_omp_Json() {
+        [CliStyler]::set_omp_Json()
+        return [CliStyler]::ompJson
+    }
+    static [string] get_omp_Json([string]$fileName, [uri]$gisturi) {
+        [CliStyler]::set_omp_Json() # set default stuff first
+        if ([string]::IsNullOrWhiteSpace("$([CliStyler]::ompJson) ".Trim())) {
+            Write-Host "Fetching the latest omp.json (One-time only)" -ForegroundColor Green; # Fetch it Once only, To Avoid spamming the github API :)
+            $gistId = $gisturi.Segments[-1]; $jsoncontent = $(Invoke-RestMethod -Method Get "https://api.github.com/gists/$gistId" -Verbose:$false).files."$fileName".content
+            if ([string]::IsNullOrWhiteSpace($jsoncontent)) {
+                Throw [System.IO.InvalidDataException]::NEW('FAILED to get valid json string gtom github gist')
+            }
+            [CliStyler]::ompJson = $jsoncontent
+        }
+        return [CliStyler]::ompJson
+    }
+    static [void] InstallOhMyPosh() {
+        [CliStyler]::InstallOhMyPosh($true)
+    }
+    static [void] InstallOhMyPosh([bool]$AllUsers) {
+        $ompdir = [IO.DirectoryInfo]::new((Get-Variable OH_MY_POSH_PATH -Scope Global -ValueOnly))
+        if (!$ompdir.Exists) { [void][CliStyler]::Create_Directory($ompdir.FullName) }
+        if ([bool](Get-Command oh-my-posh -Type Application -ErrorAction Ignore)) {
+            Write-Verbose "oh-my-posh is already Installed; moing on ..."
+            return
+        }
+        # begin installation
+        $installer = ''; $installInstructions = "`nHey friend`n`nThis installer is only available for Windows.`nIf you're looking for installation instructions for your operating system,`nplease visit the following link:`n"
+        $Host_OS = [CliStyler]::HostOS.ToString()
+        if ($Host_OS -eq "MacOS") {
+            Write-Host "`n$installInstructions`n`nhttps://ohmyposh.dev/docs/installation/macos`n"
+        } elseif ($Host_OS -eq "Linux") {
+            Write-Host "`n$installInstructions`n`nhttps://ohmyposh.dev/docs/installation/linux"
+        } elseif ($Host_OS -eq "Windows") {
+            $arch = (Get-CimInstance -Class Win32_Processor -Property Architecture).Architecture | Select-Object -First 1
+            switch ($arch) {
+                0 { $installer = "install-386.exe" } # x86
+                5 { $installer = "install-arm64.exe" } # ARM
+                9 {
+                    if ([Environment]::Is64BitOperatingSystem) {
+                        $installer = "install-amd64.exe"
+                    } else {
+                        $installer = "install-386.exe"
+                    }
+                }
+                12 { $installer = "install-arm64.exe" } # Surface Pro X
+            }
+
+            if ([string]::IsNullOrEmpty($installer)) {
+                Write-Host "`nThe installer for system architecture ($arch) is not available.`n"
+                exit
+            }
+
+            Write-Host "Downloading $installer..."
+            if (Get-Command -Name New-TemporaryFile -ErrorAction SilentlyContinue) {
+                $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'exe' } -PassThru
+            } else {
+                $tmp = New-Item -Path $env:TEMP -Name ([System.IO.Path]::GetRandomFileName() -replace '\.\w+$', '.exe') -Force -ItemType File
+            }
+            $url = "https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/$installer"
+
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri $url -Method Head | Where-Object -FilterScript { $_.StatusCode -ne 200 }  # Suppress success output
+
+            Invoke-WebRequest -OutFile $tmp $url
+            Write-Host 'Running installer...'
+            $installMode = "/CURRENTUSER"
+            if ($AllUsers) {
+                $installMode = "/ALLUSERS"
+            }
+            & "$tmp" /VERYSILENT $installMode | Out-Null
+            $tmp | Remove-Item
+            #todo: refresh the shell
+        } else {
+            throw "Error: Could not determine the Host operating system."
+        }
+    }
+    static [IO.FileInfo] GetPsProfile() {
+        # This method will return the profile file (CurrentUserCurrentHost) and creates a new one if it does not already exist.
+        $Documents_Path = [CliStyler]::GetDocumentsPath()
+        if (!$Documents_Path.Exists) {
+            New-Item -Path $Documents_Path -ItemType Directory
+        }
+        # Manually get CurrentUserCurrentHost profile file
+        $prof = [IO.FileInfo]::new([IO.Path]::Combine($Documents_Path, 'PowerShell', 'Microsoft.PowerShell_profile.ps1'))
+        if (!$prof.Exists) { $prof = [CliStyler]::GetPsProfile($prof) }
+        return $prof
+    }
+    static [IO.FileInfo] GetPsProfile([IO.FileInfo]$file) {
+        if (!$file.Directory.Exists) { [void][CliStyler]::Create_Directory($file.Directory.FullName) }
+        $file = New-Item -ItemType File -Path $file.FullName
+        [CliStyler]::Add_OMP_To_Profile($file)
+        return $file
+    }
+    static [IO.DirectoryInfo] GetDocumentsPath() {
+        $UserProfilPath = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::UserProfile)
+        $Documents_Path = if (![IO.Path]::Exists($UserProfilPath)) {
+            $mydocsPath = [Environment]::GetFolderPath([System.Environment+SpecialFolder]::MyDocuments)
+            $mydocsPath = if (![IO.Path]::Exists($mydocsPath)) {
+                $commondocs = [Environment]::GetFolderPath([System.Environment+SpecialFolder]::CommonDocuments)
+                if (![IO.Path]::Exists($commondocs)) {
+                    throw [System.InvalidOperationException]::new("Could not find Documents Path")
+                }
+                $commondocs
+            } else {
+                $mydocsPath
+            }
+        } else {
+            [IO.Path]::Combine($UserProfilPath, 'Documents')
+        }
+        return $Documents_Path -as [IO.DirectoryInfo]
+    }
+    static hidden [void] set_omp_Json() {
         if ($null -eq [CliStyler]::OmpJsonFile.FullName) { [CliStyler]::Set_Defaults() }
         [CliStyler]::OmpJsonFile = [IO.FileInfo]::New([IO.Path]::Combine($(Get-Variable OH_MY_POSH_PATH -Scope Global -ValueOnly), 'themes', 'p10k_classic.omp.json'))
         if (![CliStyler]::OmpJsonFile.Exists) {
@@ -259,59 +375,7 @@ class CliStyler {
         # try to Beautify the json:
         [CliStyler]::ompJson = [CliStyler]::ompJson.Replace('",   "', "`",`n`t`"").Replace('"   },   {', "`"`n`t},`n`t{").Replace('     ', "`n`t").Replace("       ", "`n`t`t").Replace('[   {', "[`n`t{").Replace('"   }', "`"   }").Replace('{   "', "{`n`t`"")
         [CliStyler]::ompJson = [CliStyler]::ompJson.Split("`n").Trim().Where({ ![string]::IsNullOrEmpty($_) })
-        [CliStyler]::ompJson = [CliStyler]::ompJson.Replace('{ "', "{`n  `"").Replace('", "',"`",`n`t`"").Replace(': [ {', ": [`b{`t`t").Replace(' }, {', " },`b{`t`t").Replace(' } ],', "`n} ],`b")
-    }
-    static [string] get_omp_Json() {
-        [CliStyler]::set_omp_Json()
-        return [CliStyler]::ompJson
-    }
-    static [string] get_omp_Json([string]$fileName, [uri]$gisturi) {
-        if ([string]::IsNullOrWhiteSpace("$([CliStyler]::ompJson) ".Trim())) {
-            Write-Host "Fetching the latest omp.json (One-time only)" -ForegroundColor Green; # Fetch it Once only, To Avoid spamming the github API :)
-            $gistId = $gisturi.Segments[-1]; $jsoncontent = $(Invoke-RestMethod -Method Get "https://api.github.com/gists/$gistId" -Verbose:$false).files."$fileName".content
-            if ([string]::IsNullOrWhiteSpace($jsoncontent)) {
-                Throw [System.IO.InvalidDataException]::NEW('FAILED to get valid json string gtom github gist')
-            }
-            [CliStyler]::ompJson = $jsoncontent
-        }
-        return [CliStyler]::ompJson
-    }
-    static [void] InstallOhMyPosh() {
-        $ompdir = [IO.DirectoryInfo]::new((Get-Variable OH_MY_POSH_PATH -Scope Global -ValueOnly))
-        if (!$ompdir.Exists) { [void][CliStyler]::Create_Directory($ompdir.FullName) }
-        if (![bool](Get-Command oh-my-posh -Type Application -ErrorAction Ignore)) {
-            $OmpInstaller = (New-Object System.Net.WebClient).DownloadString('https://ohmyposh.dev/install.ps1');
-            $OmpInstaller = [ScriptBlock]::Create($OmpInstaller); $OmpInstaller.Invoke()
-        } else {
-            Write-Verbose "oh-my-posh is already Installed; moing on ..."
-        }
-        if ([string]::IsNullOrWhiteSpace("$([CliStyler]::ompJson) ".Trim())) { [CliStyler]::ompJson = [CliStyler]::get_omp_Json() }
-        if (![CliStyler]::OmpJsonFile.Exists) {
-            Set-Content -Path ([CliStyler]::OmpJsonFile.FullName) -Value ([CliStyler]::ompJson) -Force
-        }
-        Write-Verbose "Adding OH_MY_POSH To Profile ..."
-
-        $sb = [System.Text.StringBuilder]::new()
-        [void]$sb.AppendLine('# Enable Oh My Posh Theme Engine')
-        [void]$sb.AppendLine('oh-my-posh --init --shell pwsh --config ~/AppData/Local/Programs/oh-my-posh/themes/p10k_classic.omp.json | Invoke-Expression')
-        $PROFILE_OPTIONS = $null; $prof = [CliStyler]::CreatePsProfile();
-        New-Variable -Name PROFILE_OPTIONS -Option Constant -Value $sb.ToString() -Scope Global;
-        if (!(Select-String -Path $prof.FullName -Pattern "oh-my-posh" -SimpleMatch -Quiet)) {
-            # TODO: #3 Move configuration to directory instead of manipulating original profile file
-            Add-Content -Path $prof.FullName -Value $PROFILE_OPTIONS
-        }
-    }
-    static [IO.FileInfo] CreatePsProfile() {
-        # This method will only create a new profile if it does not already exist.
-        $prof = [IO.FileInfo]::New((Get-Variable -Name PROFILE -Scope Global -ValueOnly));
-        if (!$prof.Exists) { $prof = [CliStyler]::CreatePsProfile($prof) }
-        return $prof
-    }
-    static [IO.FileInfo] CreatePsProfile([IO.FileInfo]$file) {
-        if (!$file.Directory.Exists) { [void][CliStyler]::Create_Directory($file.Directory.FullName) }
-        $file = New-Item -ItemType File -Path $file
-        # todo: add stuff to profile
-        return $file
+        [CliStyler]::ompJson = [CliStyler]::ompJson.Replace('{ "', "{`n  `"").Replace('", "', "`",`n`t`"").Replace(': [ {', ": [`b{`t`t").Replace(' }, {', " },`b{`t`t").Replace(' } ],', "`n} ],`b")
     }
     static hidden [void] Set_Defaults() {
         [CliStyler]::Default_Dependencies = @('Terminal-Icons', 'PSReadline', 'Pester', 'Posh-git', 'PSWinGlue', 'PowerShellForGitHub');
@@ -461,6 +525,8 @@ class CliStyler {
             WhiteSmoke           = [rgb]::new(245, 245, 245)
             YellowGreen          = [rgb]::new(154, 205, 50)
         }
+        # Prevent tsl errors
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         # Set the default launch ascii : alainQtec. but TODO: add a way to load it from a config instead of hardcoding it.
         [CliStyler]::Default_Term_Ascii = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('bSUBJQElASVuJW0lbiUgACAAIAAgACAAIAAgAG0lASUBJQElbiVtJW4lCgADJW0lASVuJQMlAyUDJSAAIAAgAG0lbiUgACAAAyVtJQElbiUDJW8lcCVuJQoAAyUDJSAAAyUDJQMlbSUBJQElbiVtJW4lASVuJQMlAyUgAAMlAyVuJW0lbSUBJQElbiUBJQElbiUKAAMlcCUBJW8lAyUDJQMlbSUgAAMlfAADJW0lbiVuJQMlIAADJQMlAyUDJXwAbSVuJQMlbSUBJW8lCgADJW0lASVuJQMlAyVwJXAlbyVwJW4lAyUDJQMlAyVwJQElbyUDJQMlcCVuJQMlASUrJXAlASVuJQoAcCVvJSAAcCVvJXAlASVvJQElASVvJW8lbyVwJW8lASUBJW4lcCUBJQElbyUBJQElbyUBJQElbyUKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABwJW8lCgAiAFEAdQBpAGMAawAgAHAAcgBvAGQAdQBjAHQAaQB2AGUAIAB0AGUAYwBoACIA'));
         [CliStyler]::WINDOWS_TERMINAL_PATH = [IO.Path]::Combine($env:LocalAppdata, 'Packages', 'Microsoft.WindowsTerminal_8wekyb3d8bbwe', 'LocalState', 'settings.json');
@@ -474,7 +540,29 @@ class CliStyler {
         if (!(Get-Variable OH_MY_POSH_PATH -ValueOnly)) {
             New-Variable -Name OH_MY_POSH_PATH -Scope Global -Option Constant -Value ([IO.Path]::Combine($env:LOCALAPPDATA, 'Programs', 'oh-my-posh')) -Force
         }
+        [CliStyler]::HostOS = $(if ($(Get-Variable PSVersionTable -Value).PSVersion.Major -le 5 -or $(Get-Variable IsWindows -Value)) { "Windows" }elseif ($(Get-Variable IsLinux -Value)) { "Linux" }elseif ($(Get-Variable IsMacOS -Value)) { "MacOS" }else { "UNKNOWN" });
         [CliStyler]::OmpJsonFile = [IO.FileInfo]::New([IO.Path]::Combine($(Get-Variable OH_MY_POSH_PATH -Scope Global -ValueOnly), 'themes', 'p10k_classic.omp.json'))
+    }
+    static [void] Add_OMP_To_Profile() {
+        [CliStyler]::Add_OMP_To_Profile([CliStyler]::GetPsProfile())
+    }
+    static [void] Add_OMP_To_Profile([IO.FileInfo]$File) {
+        Write-Host "Checking for OH_MY_POSH in Profile ... " -ForegroundColor Yellow
+        if ([string]::IsNullOrWhiteSpace("$([CliStyler]::ompJson) ".Trim())) { [CliStyler]::ompJson = [CliStyler]::get_omp_Json() }
+        if (![CliStyler]::OmpJsonFile.Exists) {
+            Set-Content -Path ([CliStyler]::OmpJsonFile.FullName) -Value ([CliStyler]::ompJson) -Force
+        }
+        $sb = [System.Text.StringBuilder]::new()
+        [void]$sb.AppendLine('# Enable Oh My Posh Theme Engine')
+        [void]$sb.AppendLine('oh-my-posh --init --shell pwsh --config ~/AppData/Local/Programs/oh-my-posh/themes/p10k_classic.omp.json | Invoke-Expression')
+        if (!(Select-String -Path $File.FullName -Pattern "oh-my-posh" -SimpleMatch -Quiet)) {
+            # TODO: #3 Move configuration to directory instead of manipulating original profile file
+            Write-Host "Add OH_MY_POSH to Profile ... " -NoNewline -ForegroundColor DarkYellow
+            Add-Content -Path $File.FullName -Value $sb.ToString()
+            Write-Host "Done." -ForegroundColor Yellow
+        } else {
+            Write-Host "OH_MY_POSH is added to Profile." -ForegroundColor Green
+        }
     }
     static [void] Set_TerminalUI() {
         (Get-Variable -Name Host -ValueOnly).UI.RawUI.WindowTitle = [CliStyler]::WindowTitle
