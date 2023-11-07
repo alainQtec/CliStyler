@@ -182,12 +182,15 @@ class CliStyler {
     static hidden [void] InstallNerdFont() {
         Write-Verbose "[CliStyler] Installing Nerd Font (FiraCode) ..."
         #Requires -Version 3.0
-        $fczip = [IO.FileInfo][IO.Path]::Combine($env:temp, 'FiraCode.zip')
-        if (!$fczip.Exists) {
-            Invoke-WebRequest -Uri https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip -OutFile $fczip.FullName
+        [IO.DirectoryInfo]$FiraCodeExpand = [IO.Path]::Combine($env:temp, 'FiraCodeExpand')
+        if (!$FiraCodeExpand.Exists) {
+            $fczip = [IO.FileInfo][IO.Path]::Combine($env:temp, 'FiraCode.zip')
+            if (!$fczip.Exists) {
+                Invoke-WebRequest -Uri https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip -OutFile $fczip.FullName
+            }
+            Expand-Archive -Path $fczip.FullName -DestinationPath $FiraCodeExpand.FullName
+            Remove-Item -Path $fczip.FullName -Recurse
         }
-        Expand-Archive -Path $fczip.FullName -DestinationPath ([IO.Path]::Combine($env:temp, 'FiraCodeExpand'))
-        Remove-Item -Path $fczip.FullName -Recurse
         # TODO: #13 Check error handling
         Import-Module -Name PSWinGlue -WarningAction silentlyContinue
 
@@ -777,7 +780,6 @@ class CliStyler {
 }
 
 #endregion Classes
-
 $Private = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -Filter "*.ps1" -ErrorAction SilentlyContinue
 $Public = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Public')) -Filter "*.ps1" -ErrorAction SilentlyContinue
 # Load dependencies
