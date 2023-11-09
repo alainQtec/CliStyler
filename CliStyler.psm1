@@ -263,12 +263,14 @@ class CliStyler {
         $InformationPreference = $IPref
     }
     static [void] InstallOhMyPosh() {
-        [CliStyler]::InstallOhMyPosh($true)
+        [CliStyler]::InstallOhMyPosh($true, $false)
     }
-    static [void] InstallOhMyPosh([bool]$AllUsers) {
+    static [void] InstallOhMyPosh([bool]$AllUsers, [bool]$force) {
+        $ompath = Get-Variable OH_MY_POSH_PATH -Scope Global -ValueOnly -ErrorAction Ignore
+        if ($null -eq $ompath) { [CliStyler]::Set_Defaults() }
         $ompdir = [IO.DirectoryInfo]::new((Get-Variable OH_MY_POSH_PATH -Scope Global -ValueOnly))
         if (!$ompdir.Exists) { [void][CliStyler]::Create_Directory($ompdir.FullName) }
-        if ([bool](Get-Command oh-my-posh -Type Application -ErrorAction Ignore)) {
+        if (!$force -and [bool](Get-Command oh-my-posh -Type Application -ErrorAction Ignore)) {
             Write-Verbose "oh-my-posh is already Installed; moing on ..."
             return
         }
@@ -282,8 +284,8 @@ class CliStyler {
         } elseif ($Host_OS -eq "Windows") {
             $arch = (Get-CimInstance -Class Win32_Processor -Property Architecture).Architecture | Select-Object -First 1
             switch ($arch) {
-                0 { $installer = "install-386.exe" } # x86
-                5 { $installer = "install-arm64.exe" } # ARM
+                0 { $installer = "install-386.exe" }
+                5 { $installer = "install-arm64.exe" }
                 9 {
                     if ([Environment]::Is64BitOperatingSystem) {
                         $installer = "install-amd64.exe"
@@ -291,31 +293,30 @@ class CliStyler {
                         $installer = "install-386.exe"
                     }
                 }
-                12 { $installer = "install-arm64.exe" } # Surface Pro X
+                12 { $installer = "install-arm64.exe" }
             }
             if ([string]::IsNullOrEmpty($installer)) {
                 throw "`nThe installer for system architecture ($(@{
-                    0 = 'X86'
-                    5 = 'ARM'
-                    9 = 'AMD64/32'
+                    0  = 'X86'
+                    5  = 'ARM'
+                    9  = 'AMD64/32'
                     12 = 'Surface'
                 }.$arch)) is not available.`n"
             }
-
             Write-Host "Downloading $installer..."
             $omp_installer = [IO.FileInfo]::new("aux"); $ret_count = 0
             do {
                 $omp_installer = [IO.FileInfo]::new([IO.Path]::Combine($env:TEMP, ([System.IO.Path]::GetRandomFileName() -replace '\.\w+$', '.exe'))); $ret_count++
             } while (![IO.File]::Exists($omp_installer.FullName) -and $ret_count -le 10)
             $url = "https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/$installer"
-
             [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-            Invoke-WebRequest -OutFile $omp_installer.FullName -Uri $url -Method Head | Where-Object -FilterScript { $_.StatusCode -ne 200 }  # Suppress success output
+            Invoke-WebRequest -OutFile $omp_installer.FullName -Uri $url
             Write-Host 'Running installer...'
             $installMode = "/CURRENTUSER"
             if ($AllUsers) {
                 $installMode = "/ALLUSERS"
             }
+
             & "$omp_installer" /VERYSILENT $installMode | Out-Null
             $omp_installer | Remove-Item
             #todo: refresh the shell
