@@ -78,11 +78,8 @@ class CliStyler {
                 Write-Verbose "PackageProvider '$name' is already Installed."
             }
         }
-        $requiredModules.ForEach({
-                if ($null -eq (Get-Module $_ -ListAvailable)) { Install-Module -Name $_ }
-                Import-Module -Name $_ -WarningAction SilentlyContinue
-            }
-        )
+        # Install requied modules:
+        [CliStyler]::Resolve_module($requiredModules) # we could use Install-Module -Name $_ but it fails sometimes
         # BeautifyTerminal :
         if ([CliStyler]::IsTerminalInstalled()) {
             [CliStyler]::AddColorScheme()
@@ -211,17 +208,21 @@ class CliStyler {
             Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command {$command}" -Verb RunAs -Wait -WindowStyle Minimized
         }
         $settings = [CliStyler]::GetTerminalSettings()
-        # Check default profile has font or not
-        if ($settings.profiles.defaults | Get-Member -Name 'font' -MemberType Properties) {
-            $settings.profiles.defaults.font.face = 'FiraCode Nerd Font'
+        if ($null -ne $settings) {
+            # Check default profile has font or not
+            if ($settings.profiles.defaults | Get-Member -Name 'font' -MemberType Properties) {
+                $settings.profiles.defaults.font.face = 'FiraCode Nerd Font'
+            } else {
+                $settings.profiles.defaults | Add-Member -MemberType NoteProperty -Name 'font' -Value $(
+                    [PSCustomObject]@{
+                        face = 'FiraCode Nerd Font'
+                    }
+                ) | ConvertTo-Json
+            }
+            [CliStyler]::SaveTerminalSettings($settings);
         } else {
-            $settings.profiles.defaults | Add-Member -MemberType NoteProperty -Name 'font' -Value $(
-                [PSCustomObject]@{
-                    face = 'FiraCode Nerd Font'
-                }
-            ) | ConvertTo-Json
+            Write-Warning "Could update Terminal font settings!"
         }
-        [CliStyler]::SaveTerminalSettings($settings);
     }
     static hidden [void] InstallWinget() {
         Write-Verbose "[CliStyler] Installing winget .."
@@ -292,31 +293,31 @@ class CliStyler {
                 }
                 12 { $installer = "install-arm64.exe" } # Surface Pro X
             }
-
             if ([string]::IsNullOrEmpty($installer)) {
-                Write-Host "`nThe installer for system architecture ($arch) is not available.`n"
-                exit
+                throw "`nThe installer for system architecture ($(@{
+                    0 = 'X86'
+                    5 = 'ARM'
+                    9 = 'AMD64/32'
+                    12 = 'Surface'
+                }.$arch)) is not available.`n"
             }
 
             Write-Host "Downloading $installer..."
-            if (Get-Command -Name New-TemporaryFile -ErrorAction SilentlyContinue) {
-                $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'exe' } -PassThru
-            } else {
-                $tmp = New-Item -Path $env:TEMP -Name ([System.IO.Path]::GetRandomFileName() -replace '\.\w+$', '.exe') -Force -ItemType File
-            }
+            $omp_installer = [IO.FileInfo]::new("aux"); $ret_count = 0
+            do {
+                $omp_installer = [IO.FileInfo]::new([IO.Path]::Combine($env:TEMP, ([System.IO.Path]::GetRandomFileName() -replace '\.\w+$', '.exe'))); $ret_count++
+            } while (![IO.File]::Exists($omp_installer.FullName) -and $ret_count -le 10)
             $url = "https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/$installer"
 
             [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-            Invoke-WebRequest -Uri $url -Method Head | Where-Object -FilterScript { $_.StatusCode -ne 200 }  # Suppress success output
-
-            Invoke-WebRequest -OutFile $tmp $url
+            Invoke-WebRequest -OutFile $omp_installer.FullName -Uri $url -Method Head | Where-Object -FilterScript { $_.StatusCode -ne 200 }  # Suppress success output
             Write-Host 'Running installer...'
             $installMode = "/CURRENTUSER"
             if ($AllUsers) {
                 $installMode = "/ALLUSERS"
             }
-            & "$tmp" /VERYSILENT $installMode | Out-Null
-            $tmp | Remove-Item
+            & "$omp_installer" /VERYSILENT $installMode | Out-Null
+            $omp_installer | Remove-Item
             #todo: refresh the shell
         } else {
             throw "Error: Could not determine the Host operating system."
@@ -373,13 +374,13 @@ class CliStyler {
         }
         return $Documents_Path -as [IO.DirectoryInfo]
     }
-    static [string] get_omp_Json() {
+    static [string] Get_omp_Json() {
         if ([string]::IsNullOrWhiteSpace("$([string][cliStyler]::ompJson) ".Trim())) {
             return [CliStyler]::get_omp_Json('omp.json', [uri]::new('https://gist.github.com/alainQtec/b106f0e618bb9bbef86611824fc37825'))
         }
         return [CliStyler]::ompJson
     }
-    static [string] get_omp_Json([string]$fileName, [uri]$gisturi) {
+    static [string] Get_omp_Json([string]$fileName, [uri]$gisturi) {
         Write-Host "Fetching the latest $fileName" -ForegroundColor Green;
         $gistId = $gisturi.Segments[-1];
         $jsoncontent = Invoke-WebRequest "https://gist.githubusercontent.com/alainQtec/$gistId/raw/$fileName" -Verbose:$false | Select-Object -ExpandProperty Content
@@ -388,10 +389,10 @@ class CliStyler {
         }
         return $jsoncontent
     }
-    static [void] set_omp_Json() {
+    static [void] Set_omp_Json() {
         [CliStyler]::set_omp_Json('omp.json', [uri]::new('https://gist.github.com/alainQtec/b106f0e618bb9bbef86611824fc37825'))
     }
-    static [void] set_omp_Json([string]$fileName, [uri]$gisturi) {
+    static [void] Set_omp_Json([string]$fileName, [uri]$gisturi) {
         if ($null -eq [CliStyler]::OmpJsonFile.FullName) { [CliStyler]::Set_Defaults() }
         [CliStyler]::OmpJsonFile = [IO.FileInfo]::New([IO.Path]::Combine($(Get-Variable OH_MY_POSH_PATH -Scope Global -ValueOnly -ErrorAction Ignore), 'themes', 'p10k_classic.omp.json'))
         if (![CliStyler]::OmpJsonFile.Exists) {
@@ -635,6 +636,14 @@ class CliStyler {
             Write-Host ''
         }
     }
+    static [void] Resolve_module([string[]]$names) {
+        if (!$(Get-Variable Resolve_Module_fn -ValueOnly -Scope global)) {
+            Write-Verbose "Fetching the script Resolve-Module.ps1 (One-time only)"; # Fetch it Once only :)
+            Set-Variable -Name Resolve_Module_fn -Scope global -Option ReadOnly -Value ([scriptblock]::Create($((Invoke-RestMethod -Method Get https://api.github.com/gists/7629f35f93ae89a525204bfd9931b366).files.'Resolve-Module.ps1'.content)))
+        }
+        . $(Get-Variable Resolve_Module_fn -ValueOnly -Scope global)
+        Resolve-module -Name $Names
+    }
     static [void] Write_RGB([string]$Text, $ForegroundColor) {
         [CliStyler]::Write_RGB($Text, $ForegroundColor, $true)
     }
@@ -804,6 +813,7 @@ class CliStyler {
 }
 
 #endregion Classes
+
 
 $Private = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -Filter "*.ps1" -ErrorAction SilentlyContinue
 $Public = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Public')) -Filter "*.ps1" -ErrorAction SilentlyContinue
