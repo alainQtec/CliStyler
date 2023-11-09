@@ -44,7 +44,7 @@ class CliStyler {
     static hidden [bool] $CurrExitCode
     static hidden [IO.FileInfo] $OmpJsonFile
     static [string[]] $Default_Dependencies
-    static hidden [string] $WINDOWS_TERMINAL_PATH
+    static hidden [string] $WINDOWS_TERMINAL_JSON_PATH
     static [Int32] $realLASTEXITCODE = $LASTEXITCODE
     static hidden [PSCustomObject] $TERMINAL_Settings
 
@@ -84,7 +84,11 @@ class CliStyler {
             }
         )
         # BeautifyTerminal :
-        [CliStyler]::AddColorScheme()
+        if ([CliStyler]::IsTerminalInstalled()) {
+            [CliStyler]::AddColorScheme()
+        } else {
+            Write-Warning "Windows terminal is not Installed!"
+        }
         [CliStyler]::InstallNerdFont()
         [CliStyler]::InstallOhMyPosh() # instead of: winget install JanDeDobbeleer.OhMyPosh
         Set-PSReadLineOption -PredictionSource HistoryAndPlugin -PredictionViewStyle ListView # Optional
@@ -127,19 +131,24 @@ class CliStyler {
         [CliStyler]::TERMINAL_Settings = [CliStyler]::GetTerminalSettings();
     }
     static [PSCustomObject] GetTerminalSettings() {
-        # Make backup
-        Copy-Item -Path $([CliStyler]::WINDOWS_TERMINAL_PATH) -Destination $env:temp
-        # Read Windows Terminal settings
-        return (Get-Content $([CliStyler]::WINDOWS_TERMINAL_PATH) -Raw | ConvertFrom-Json)
+        if ([CliStyler]::IsTerminalInstalled()) {
+            if ([IO.Directory]::Exists([CliStyler]::WINDOWS_TERMINAL_JSON_PATH)) {
+                return (Get-Content $([CliStyler]::WINDOWS_TERMINAL_JSON_PATH) -Raw | ConvertFrom-Json)
+            }
+            Write-Warning "Could not find WINDOWS_TERMINAL_JSON_PATH!"
+        } else {
+            Write-Warning "Windows terminal is not installed!"
+        }
+        return $null
     }
-    static [void] SaveTerminalSettings([PSCustomObject] $settings) {
+    static [void] SaveTerminalSettings([PSCustomObject]$settings) {
         # Save changes (Write Windows Terminal settings)
-        $settings | ConvertTo-Json -Depth 32 | Set-Content $([CliStyler]::WINDOWS_TERMINAL_PATH)
+        $settings | ConvertTo-Json -Depth 32 | Set-Content $([CliStyler]::WINDOWS_TERMINAL_JSON_PATH)
     }
     static hidden [void] AddColorScheme() {
         $settings = [CliStyler]::GetTerminalSettings();
         if ($null -eq $settings) {
-            throw "[CliStyler] Could not get TerminalSettings"
+            throw "[CliStyler] Could not get TerminalSettings, please make sure windowsTerminal is installed."
         }
         $sonokaiSchema = [PSCustomObject]@{
             name                = "Sonokai Shusia"
@@ -183,25 +192,25 @@ class CliStyler {
         Write-Verbose "[CliStyler] Installing Nerd Font (FiraCode) ..."
         #Requires -Version 3.0
         [IO.DirectoryInfo]$FiraCodeExpand = [IO.Path]::Combine($env:temp, 'FiraCodeExpand')
-        if (!$FiraCodeExpand.Exists) {
+        if (![System.IO.Directory]::Exists($FiraCodeExpand.FullName)) {
             $fczip = [IO.FileInfo][IO.Path]::Combine($env:temp, 'FiraCode.zip')
-            if (!$fczip.Exists) {
+            if (![IO.File]::Exists($fczip.FullName)) {
                 Invoke-WebRequest -Uri https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip -OutFile $fczip.FullName
             }
             Expand-Archive -Path $fczip.FullName -DestinationPath $FiraCodeExpand.FullName
             Remove-Item -Path $fczip.FullName -Recurse
         }
-        # TODO: #13 Check error handling
+        # Install Fonts
+        # the Install-Font function is found in PSWinGlue module
         Import-Module -Name PSWinGlue -WarningAction silentlyContinue
-
         # TODO: #14 Check if fonts exist, skip this step
         # Elevate to Administrative
-        if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-            # Install Fonts
-            Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -Command {Install-Font -Path $env:temp'\FiraCodeExpand'}" -Verb RunAs
+        if (![CliStyler]::IsAdministrator()) {
+            Write-Host "Installing Fonts ..." -ForegroundColor Green
+            $command = "Install-Font -Path '{0}'" -f ([IO.Path]::Combine($env:temp, 'FiraCodeExpand'))
+            Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command {$command}" -Verb RunAs -Wait -WindowStyle Minimized
         }
         $settings = [CliStyler]::GetTerminalSettings()
-
         # Check default profile has font or not
         if ($settings.profiles.defaults | Get-Member -Name 'font' -MemberType Properties) {
             $settings.profiles.defaults.font.face = 'FiraCode Nerd Font'
@@ -312,6 +321,22 @@ class CliStyler {
         } else {
             throw "Error: Could not determine the Host operating system."
         }
+    }
+    static [bool] IsTerminalInstalled() {
+        $IsInstalled = $true
+        # check in wt if added to %PATH%
+        $defWtpath = (Get-Command wt.exe -Type Application -ErrorAction Ignore).Source
+        if (![string]::IsNullOrWhiteSpace($defWtpath)) {
+            return $IsInstalled
+        }
+        # check generic paths: https://stackoverflow.com/questions/62894666/path-and-name-of-exe-file-of-windows-terminal-preview
+        $genericwt = [IO.FileInfo]::new("$env:LocalAppData/Microsoft/WindowsApps/wt.exe")
+        $msstorewt = [IO.FileInfo]::new("$env:LocalAppData/Microsoft/WindowsApps/Microsoft.WindowsTerminal_8wekyb3d8bbwe/wt.exe")
+        $IsInstalled = $IsInstalled  -and ($genericwt.Exists -or $msstorewt.Exists)
+        return $IsInstalled
+    }
+    static [bool] IsAdministrator() {
+        return ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
     }
     static [IO.FileInfo] GetPsProfile() {
         # This method will return the profile file (CurrentUserCurrentHost) and creates a new one if it does not already exist.
@@ -531,7 +556,7 @@ class CliStyler {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         # Set the default launch ascii : alainQtec. but TODO: add a way to load it from a config instead of hardcoding it.
         [CliStyler]::Default_Term_Ascii = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('bSUBJQElASVuJW0lbiUgACAAIAAgACAAIAAgAG0lASUBJQElbiVtJW4lCgADJW0lASVuJQMlAyUDJSAAIAAgAG0lbiUgACAAAyVtJQElbiUDJW8lcCVuJQoAAyUDJSAAAyUDJQMlbSUBJQElbiVtJW4lASVuJQMlAyUgAAMlAyVuJW0lbSUBJQElbiUBJQElbiUKAAMlcCUBJW8lAyUDJQMlbSUgAAMlfAADJW0lbiVuJQMlIAADJQMlAyUDJXwAbSVuJQMlbSUBJW8lCgADJW0lASVuJQMlAyVwJXAlbyVwJW4lAyUDJQMlAyVwJQElbyUDJQMlcCVuJQMlASUrJXAlASVuJQoAcCVvJSAAcCVvJXAlASVvJQElASVvJW8lbyVwJW8lASUBJW4lcCUBJQElbyUBJQElbyUBJQElbyUKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABwJW8lCgAiAFEAdQBpAGMAawAgAHAAcgBvAGQAdQBjAHQAaQB2AGUAIAB0AGUAYwBoACIA'));
-        [CliStyler]::WINDOWS_TERMINAL_PATH = [IO.Path]::Combine($env:LocalAppdata, 'Packages', 'Microsoft.WindowsTerminal_8wekyb3d8bbwe', 'LocalState', 'settings.json');
+        [CliStyler]::WINDOWS_TERMINAL_JSON_PATH = [IO.Path]::Combine($env:LocalAppdata, 'Packages', 'Microsoft.WindowsTerminal_8wekyb3d8bbwe', 'LocalState', 'settings.json');
         # Initialize or Reload $PROFILE and the core functions necessary for displaying your custom prompt.
         $p = [PSObject]::new(); Get-Variable PROFILE -ValueOnly | Get-Member -Type NoteProperty | ForEach-Object {
             $p | Add-Member -Name $_.Name -MemberType NoteProperty -Value ($_.Definition.split('=')[1] -as [IO.FileInfo])
@@ -777,6 +802,7 @@ class CliStyler {
         return $d
     }
 }
+
 #endregion Classes
 
 $Private = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -Filter "*.ps1" -ErrorAction SilentlyContinue
