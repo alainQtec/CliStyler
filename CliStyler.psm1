@@ -23,6 +23,7 @@ class RGB {
         return "$($this.Red),$($this.Green),$($this.Blue)"
     }
 }
+
 class CliStyler {
     static [string] $nl
     static [string] $dt
@@ -186,8 +187,16 @@ class CliStyler {
         }
     }
     static hidden [void] InstallNerdFont() {
-        Write-Verbose "[CliStyler] Installing Nerd Font (FiraCode) ..."
+        [clistyler]::InstallNerdFont('FiraCode')
+    }
+    static hidden [void] InstallNerdFont([string]$FontName) {
         #Requires -Version 3.0
+        [ValidateNotNullorEmpty()][string]$FontName = $FontName
+        if ([clistyler]::GetInstalledFonts().Contains("$FontName")) {
+            Write-Verbose "[CliStyler] Font '$FontName' is already installed!"
+            return
+        }
+        Write-Verbose "[CliStyler] Installing Nerd Font ($FontName) ..."
         [IO.DirectoryInfo]$FiraCodeExpand = [IO.Path]::Combine($env:temp, 'FiraCodeExpand')
         if (![System.IO.Directory]::Exists($FiraCodeExpand.FullName)) {
             $fczip = [IO.FileInfo][IO.Path]::Combine($env:temp, 'FiraCode.zip')
@@ -199,8 +208,8 @@ class CliStyler {
         }
         # Install Fonts
         # the Install-Font function is found in PSWinGlue module
+        [clistyler]::Resolve_module('PSWinGlue')
         Import-Module -Name PSWinGlue -WarningAction silentlyContinue
-        # TODO: #14 Check if fonts exist, skip this step
         # Elevate to Administrative
         if (![CliStyler]::IsAdministrator()) {
             Write-Host "Installing Fonts ..." -ForegroundColor Green
@@ -223,6 +232,15 @@ class CliStyler {
         } else {
             Write-Warning "Could update Terminal font settings!"
         }
+    }
+    static [string[]] GetInstalledFonts() {
+        Add-Type -AssemblyName System.Drawing
+        $familyList = @(); $fontFamily = New-Object System.Drawing.FontFamily("Arial")
+        $font = New-Object System.Drawing.Font($fontFamily, 8, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Point)
+        $installedFontCollection = New-Object System.Drawing.Text.InstalledFontCollection
+        $fontFamilies = $installedFontCollection.Families
+        foreach ($fontFamily in $fontFamilies) { $familyList += $fontFamily.Name }
+        return $familyList
     }
     static hidden [void] InstallWinget() {
         Write-Verbose "[CliStyler] Installing winget .."
@@ -638,7 +656,7 @@ class CliStyler {
         }
     }
     static [void] Resolve_module([string[]]$names) {
-        if (!$(Get-Variable Resolve_Module_fn -ValueOnly -Scope global)) {
+        if (!$(Get-Variable Resolve_Module_fn -ValueOnly -Scope global -ErrorAction Ignore)) {
             Write-Verbose "Fetching the script Resolve-Module.ps1 (One-time only)"; # Fetch it Once only :)
             Set-Variable -Name Resolve_Module_fn -Scope global -Option ReadOnly -Value ([scriptblock]::Create($((Invoke-RestMethod -Method Get https://api.github.com/gists/7629f35f93ae89a525204bfd9931b366).files.'Resolve-Module.ps1'.content)))
         }
@@ -812,9 +830,7 @@ class CliStyler {
         return $d
     }
 }
-
 #endregion Classes
-
 
 $Private = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -Filter "*.ps1" -ErrorAction SilentlyContinue
 $Public = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Public')) -Filter "*.ps1" -ErrorAction SilentlyContinue
