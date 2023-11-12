@@ -613,7 +613,6 @@ Begin {
             [string]$Scope
         )
         begin {
-            $PsModule = $null
             class LocalPsModule {
                 [string]$Name
                 [string]$version
@@ -624,8 +623,9 @@ Begin {
                 [psobject]$Info = $null
                 [bool]$IsReadOnly = $false
                 [bool]$HasVersiondirs = $false
-
+    
                 LocalPsModule([string]$Name) {
+                    [ValidateNotNullOrEmpty()][String]$Name = $Name
                     $ModuleBase = $null; $AvailModls = Get-Module -ListAvailable -Name $Name -ErrorAction Ignore
                     if ($null -ne $AvailModls) { $ModuleBase = ($AvailModls.ModuleBase -as [string[]])[0] }
                     if ($null -ne $ModuleBase) {
@@ -637,19 +637,19 @@ Begin {
                         $this.Name = $Module.Name
                         $this.Info = $Module.Info
                     } else {
-                        $this._Init_($Name, 'LocalMachine', $null)
+                        $this._Init_($Name, [System.Security.Cryptography.DataProtectionScope]::LocalMachine, $null)
                     }
                 }
-                LocalPsModule([string]$Name, [string]$scope) {
+                LocalPsModule([string]$Name, [version]$version) {
+                    $this._Init_($Name, [System.Security.Cryptography.DataProtectionScope]::LocalMachine, $version)
+                }
+                LocalPsModule([string]$Name, [System.Security.Cryptography.DataProtectionScope]$scope) {
                     $this._Init_($Name, $scope, $null)
                 }
-                LocalPsModule([string]$Name, [version]$version) {
-                    $this._Init_($Name, $null, $version)
-                }
-                LocalPsModule([string]$Name, [string]$scope, [version]$version) {
+                LocalPsModule([string]$Name, [System.Security.Cryptography.DataProtectionScope]$scope, [version]$version) {
                     $this._Init_($Name, $scope, $version)
                 }
-                static hidden [PSCustomObject] Find([string]$Name) {
+                static [PSCustomObject] Find([string]$Name) {
                     [ValidateNotNullOrEmpty()][string]$Name = $Name
                     $ModuleBase = $null; $AvailModls = Get-Module -ListAvailable -Name $Name -ErrorAction Ignore
                     if ($null -ne $AvailModls) { $ModuleBase = ($AvailModls.ModuleBase -as [string[]])[0] }
@@ -659,10 +659,11 @@ Begin {
                         return [LocalPsModule]::Find($Name, 'LocalMachine', $null)
                     }
                 }
-                static hidden [PSCustomObject] Find([string]$Name, [IO.DirectoryInfo]$ModuleBase) {
+                static [PSCustomObject] Find([string]$Name, [IO.DirectoryInfo]$ModuleBase) {
+                    [ValidateNotNullOrEmpty()][string]$Name = $Name
                     [ValidateNotNullOrEmpty()][IO.DirectoryInfo]$ModuleBase = $ModuleBase
                     $result = [PSCustomObject]@{
-                        Name       = [string]::Empty
+                        Name       = $Name
                         Path       = $null
                         Psd1       = $null
                         Info       = @{}
@@ -674,7 +675,7 @@ Begin {
                     $ModulePsd1 = ($ModuleBase.GetFiles().Where({ $_.Name -like "$Name*" -and $_.Extension -eq '.psd1' }))[0]
                     if ($null -eq $ModulePsd1) { return $result }
                     $result.Info = [LocalPsModule]::ReadPowershellDataFile($ModulePsd1.FullName)
-                    $result.Name = $ModulePsd1.BaseName
+                    if (![string]::IsNullOrWhiteSpace($ModulePsd1.BaseName)) { $result.Name = $ModulePsd1.BaseName }
                     $result.Psd1 = $ModulePsd1
                     $result.Path = if ($result.Psd1.Directory.Name -as [version] -is [version]) { $result.Psd1.Directory.Parent } else { $result.Psd1.Directory }
                     $result.Exists = $ModulePsd1.Exists
@@ -682,18 +683,20 @@ Begin {
                     $result.IsReadOnly = $ModulePsd1.IsReadOnly
                     return $result
                 }
-                static hidden [PSCustomObject] Find([string]$Name, [string]$scope, [version]$version) {
-                    $ModuleScope = $scope; if ([string]::IsNullOrWhiteSpace($ModuleScope)) { $ModuleScope = 'LocalMachine' }
-                    $Module = $null; $PsModule_Paths = ([LocalPsModule]::Get_Module_Paths($ModuleScope) -as [IO.DirectoryInfo[]]).Where({ $_.Exists })
-                    $PsModule_Paths = $PsModule_Paths.GetDirectories().Where({ $_.Name -eq $Name });
+                static [PSCustomObject] Find([string]$Name, [System.Security.Cryptography.DataProtectionScope]$scope, [version]$version) {
+                    $ModuleScope = $scope.ToString(); if ([string]::IsNullOrWhiteSpace($ModuleScope)) { $ModuleScope = 'LocalMachine' }
+                    $Module = $null; $PsModule_Paths = $([LocalPsModule]::Get_Module_Paths($ModuleScope) |
+                            ForEach-Object { [IO.DirectoryInfo]::New("$_") } | Where-Object { $_.Exists }
+                    ).GetDirectories().Where({ $_.Name -eq $Name });
                     if ($PsModule_Paths.count -gt 0) {
-                        $has_versionDir = [LocalPsModule]::Get_versionDirs($PsModule_Paths).Count -gt 0
+                        $Get_versionDir = [scriptblock]::Create('param([IO.DirectoryInfo[]]$direcrory) return ($direcrory | ForEach-Object { $_.GetDirectories() | Where-Object { $_.Name -as [version] -is [version] } })')
+                        $has_versionDir = $Get_versionDir.Invoke($PsModule_Paths).count -gt 0
                         $ModulePsdFiles = $PsModule_Paths | ForEach-Object {
                             if ($has_versionDir) {
-                                [string]$MaxVersion = ([LocalPsModule]::Get_versionDirs([IO.DirectoryInfo]::New("$($_.FullName)")) | Select-Object @{l = 'version'; e = { $_.BaseName -as [version] } } | Measure-Object -Property version -Maximum).Maximum
-                                [IO.FileInfo]::New([IO.Path]::Combine("$($_.FullName)", $MaxVersion, $_.BaseName + '.psd1'))
+                                [string]$MaxVersion = ($Get_versionDir.Invoke([IO.DirectoryInfo]::New("$_")) | Select-Object @{l = 'version'; e = { $_.BaseName -as [version] } } | Measure-Object -Property version -Maximum).Maximum
+                                [IO.FileInfo]::New([IO.Path]::Combine("$_", $MaxVersion, $_.BaseName + '.psd1'))
                             } else {
-                                [IO.FileInfo]::New([IO.Path]::Combine("$($_.FullName)", $_.BaseName + '.psd1'))
+                                [IO.FileInfo]::New([IO.Path]::Combine("$_", $_.BaseName + '.psd1'))
                             }
                         } | Where-Object { $_.Exists }
                         $Get_ModuleVersion = {
@@ -714,22 +717,18 @@ Begin {
                 static [string[]] Get_Module_Paths() {
                     return [LocalPsModule]::Get_Module_Paths($null)
                 }
-                static [IO.DirectoryInfo[]] Get_versionDirs([IO.DirectoryInfo[]]$directories) {
-                    return $directories.ForEach({
-                            $_.GetDirectories() | Where-Object { $_.Name -as [version] -is [version] }
-                        }
-                    )
-                }
                 static [string[]] Get_Module_Paths([string]$scope) {
+                    return [LocalPsModule]::Get_Module_Paths([System.Security.Cryptography.DataProtectionScope]$scope)
+                }
+                static [string[]] Get_Module_Paths([System.Security.Cryptography.DataProtectionScope]$scope) {
                     [string[]]$_Module_Paths = [System.Environment]::GetEnvironmentVariable('PSModulePath').Split([IO.Path]::PathSeparator)
-                    if ([string]::IsNullOrWhiteSpace($scope)) { return $_Module_Paths }
-                    [ValidateSet('CurrentUser', 'LocalMachine')][string]$scope = $scope
-                    if ([System.Environment]::OSVersion.Platform -in ('Win32NT', 'Win32S', 'Win32Windows', 'WinCE')) {
+                    if ([string]::IsNullOrWhiteSpace("$scope")) { return $_Module_Paths }
+                    if (!(Get-Variable -Name IsWindows -ErrorAction Ignore) -or $(Get-Variable IsWindows -ValueOnly)) {
                         $psv = Get-Variable PSVersionTable -ValueOnly
                         $allUsers_path = Join-Path -Path $env:ProgramFiles -ChildPath $(if ($psv.ContainsKey('PSEdition') -and $psv.PSEdition -eq 'Core') { 'PowerShell' } else { 'WindowsPowerShell' })
                         if ($Scope -eq 'CurrentUser') { $_Module_Paths = $_Module_Paths.Where({ $_ -notlike "*$($allUsers_path | Split-Path)*" -and $_ -notlike "*$env:SystemRoot*" }) }
                     } else {
-                        $allUsers_path = Split-Path -Path ([scriptblock]::Create("[System.Management.Automation.Platform]::SelectProductNameForDirectory('SHARED_MODULES')").Invoke()) -Parent
+                        $allUsers_path = [ScriptBlock]::Create("Split-Path -Path ([System.Management.Automation.Platform]::SelectProductNameForDirectory('SHARED_MODULES')) -Parent").Invoke()
                         if ($Scope -eq 'CurrentUser') { $_Module_Paths = $_Module_Paths.Where({ $_ -notlike "*$($allUsers_path | Split-Path)*" -and $_ -notlike "*/var/lib/*" }) }
                     }
                     return $_Module_Paths
@@ -740,23 +739,29 @@ Begin {
                     $data = [scriptblock]::Create("$text").Invoke()
                     return $data
                 }
-                hidden _Init_ ([string]$Name, [string]$scope, [version]$version) {
+                hidden [void] _Init_ ([string]$Name, [System.Security.Cryptography.DataProtectionScope]$scope, [version]$version) {
                     [ValidateSet('CurrentUser', 'LocalMachine')][string]$scope = $scope
-                    $Module = [LocalPsModule]::Find($Name, $scope, $version); $this.IsReadOnly = $Module.IsReadOnly;
-                    $this.version = $Module.version; $this.Exists = $Module.Exists; $this.Scope = $Module.Scope
-                    $this.Path = $Module.Path
-                    $this.Psd1 = $Module.Psd1
-                    $this.Name = $Module.Name
-                    $this.Info = $Module.Info
+                    $Module = [LocalPsModule]::Find($Name, $scope, $version);
+                    if ($null -ne $Module) {
+                        $this.IsReadOnly = $Module.IsReadOnly;
+                        $this.version = $Module.version; $this.Exists = $Module.Exists; $this.Scope = $Module.Scope
+                        $this.Path = $Module.Path
+                        $this.Psd1 = $Module.Psd1
+                        $this.Name = $Module.Name
+                        $this.Info = $Module.Info
+                    } else {
+                        $this.Name = $Name; $this.Exists = $false
+                    }
                 }
             }
         }
         process {
+            $PsModule = $null
             $PsModule = switch ($true) {
-                $($PSBoundParameters.ContainsKey('version') -and $PSBoundParameters.ContainsKey('Scope')) { [LocalPsModule]::New($Name, $Scope, $version) ; break }
-                $($PSBoundParameters.ContainsKey('version') -and !$PSBoundParameters.ContainsKey('Scope')) { [LocalPsModule]::New($Name, 'LocalMachine', $version) ; break }
-                $(!$PSBoundParameters.ContainsKey('version') -and $PSBoundParameters.ContainsKey('Scope')) { [LocalPsModule]::New($Name, $Scope) ; break }
-                $(!$PSBoundParameters.ContainsKey('version') -and !$PSBoundParameters.ContainsKey('Scope')) { [LocalPsModule]::New($Name) ; break }
+                $($PSBoundParameters.ContainsKey('version') -and $PSBoundParameters.ContainsKey('Scope')) { New-Object LocalPsModule($Name, $Scope, $version) ; break }
+                $($PSBoundParameters.ContainsKey('version') -and !$PSBoundParameters.ContainsKey('Scope')) { New-Object LocalPsModule($Name, 'LocalMachine', $version) ; break }
+                $(!$PSBoundParameters.ContainsKey('version') -and $PSBoundParameters.ContainsKey('Scope')) { New-Object LocalPsModule($Name, $Scope, $version) ; break }
+                $(!$PSBoundParameters.ContainsKey('version') -and !$PSBoundParameters.ContainsKey('Scope')) { New-Object LocalPsModule($Name) ; break }
                 Default { New-Object LocalPsModule($Name) }
             }
         }
