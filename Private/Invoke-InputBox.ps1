@@ -40,8 +40,8 @@
     )
 
     if ((Test-IsPSWindows)) {
-        Add-Type -AssemblyName PresentationFramework
-        Add-Type -AssemblyName PresentationCore
+        [void][System.Reflection.Assembly]::LoadWithPartialName('PresentationFramework')
+        [void][System.Reflection.Assembly]::LoadWithPartialName('PresentationCore')
 
         #remove the variable because it might get cached in the ISE or VS Code
         Remove-Variable -Name myInput -Scope script -ErrorAction SilentlyContinue
