@@ -277,7 +277,7 @@ Begin {
                                 "    Creating Release ZIP..."
                                 $zipPath = [System.IO.Path]::Combine($PSScriptRoot, "$($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName'))).zip")
                                 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-                                [void][System.Reflection.Assembly]::LoadWithPartialName('System.IO.Compression.FileSystem')
+                                Add-Type -AssemblyName 'System.IO.Compression.FileSystem'
                                 [System.IO.Compression.ZipFile]::CreateFromDirectory($outputModDir, $zipPath)
                                 "    Publishing Release v$($versionToDeploy.ToString()) @ commit Id [$($commitId)] to GitHub..."
                                 $ReleaseNotes = [Environment]::GetEnvironmentVariable($env:RUN_ID + 'ReleaseNotes')

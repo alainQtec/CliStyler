@@ -42,9 +42,15 @@ Contributions are welcome! If you have ideas, bug reports, or want to contribute
 
 This project is licensed under the [MIT License](https://alainQtec.MIT-license.org).
 
-## Tools
+## Todos
 
- **cli tools included** (out of the box)
+[x] Add oh-my-posh installer method to the main class
+
+[] Add NerdFonts installer method
+
+[] Add custom prompt to $profile
+
+ <!-- **cli tools to add later in version 1+**
 
  Give your command-line environment a personal touch with CliStyler. Craft, control, and customize your CLI experience like never before.
 
@@ -68,4 +74,4 @@ This project is licensed under the [MIT License](https://alainQtec.MIT-license.o
 
 - [dd](https://thedevdash.com/)
 
-- [th](https://tenhands.app/)
+- [th](https://tenhands.app/) -->

@@ -233,14 +233,14 @@ class CliStyler {
         }
     }
     static [string[]] GetInstalledFonts() {
-        [void][System.Reflection.Assembly]::LoadWithPartialName('System.Drawing')
+        Add-Type -AssemblyName 'System.Drawing'
         $familyList = @(); $installedFontCollection = New-Object System.Drawing.Text.InstalledFontCollection
         $fontFamilies = $installedFontCollection.Families
         foreach ($fontFamily in $fontFamilies) { $familyList += $fontFamily.Name }
         return $familyList
     }
     static [System.Drawing.Font] NewFont([string]$Name) {
-        [void][System.Reflection.Assembly]::LoadWithPartialName('System.Drawing')
+        Add-Type -AssemblyName 'System.Drawing'
         $fontFamily = [System.Drawing.FontFamily]::New("$Name")
         return [System.Drawing.Font]::new($fontFamily, 8, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Point)
     }

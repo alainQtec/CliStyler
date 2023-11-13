@@ -45,7 +45,7 @@ function Install-NerdFont {
         class FontHelper {
             static [void] InstallFont([System.IO.FileInfo]$fontFile) {
                 try {
-                    [void][System.Reflection.Assembly]::LoadWithPartialName("Windows.Media.GlyphTypeface")
+                    Add-Type -AssemblyName "Windows.Media.GlyphTypeface"
                     #get font name
                     $gt = [scriptblock]::Create("[Windows.Media.GlyphTypeface]::new($($fontFile.FullName))").Invoke()
                     $family = $gt.Win32FamilyNames['en-us']
@@ -80,7 +80,7 @@ function Install-NerdFont {
             }
             static [void] UninstallFont([System.IO.FileInfo]$fontFile) {
                 try {
-                    [void][System.Reflection.Assembly]::LoadWithPartialName("Windows.Media.GlyphTypeface")
+                    Add-Type -AssemblyName "Windows.Media.GlyphTypeface"
                     #get font name
                         $gt = [scriptblock]::Create("[Windows.Media.GlyphTypeface]::new($($fontFile.FullName))").Invoke()
                         $family = $gt.Win32FamilyNames['en-us']
