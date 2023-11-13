@@ -234,7 +234,7 @@ class CliStyler {
         }
     }
     static [string[]] GetInstalledFonts() {
-        Add-Type -AssemblyName System.Drawing
+        [void][System.Reflection.Assembly]::LoadWithPartialName('System.Drawing')
         $familyList = @(); $fontFamily = New-Object System.Drawing.FontFamily("Arial")
         $font = New-Object System.Drawing.Font($fontFamily, 8, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Point)
         $installedFontCollection = New-Object System.Drawing.Text.InstalledFontCollection
