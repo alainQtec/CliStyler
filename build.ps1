@@ -329,11 +329,11 @@ Begin {
         }
     )
     $script:PSake_Build = [ScriptBlock]::Create({
-            @(
+            Resolve_Module -Names @(
                 "Psake"
                 "Pester"
                 "PSScriptAnalyzer"
-            ) | Resolve-Module -UpdateModule -Verbose
+            )
             $Host.UI.WriteLine()
             Write-BuildLog "Module Requirements Successfully resolved."
             $null = Set-Content -Path $Psake_BuildFile -Value $PSake_ScriptBlock
@@ -999,48 +999,13 @@ Begin {
             return $latest_Version
         }
     }
-    function Resolve-Module {
-        # .DESCRIPTION
-        #   Gets latest module version from PSGallery and installs the update if local module is out of date.
-        [CmdletBinding()]
-        param (
-            [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
-            [Alias('Name')]
-            [string[]]$Names,
-            [switch]$UpdateModule
-        )
-        process {
-            foreach ($moduleName in $Names) {
-                Write-Host "`n##[Info] Resolve dependency Module [$moduleName]" -ForegroundColor Magenta
-                $Local_ModuleVersion = Get-LatestModuleVersion -Name $moduleName -Source LocalMachine
-                $Latest_ModuleVerion = Get-LatestModuleVersion -Name $moduleName -Source PsGallery
-                if (!$Latest_ModuleVerion -or $Latest_ModuleVerion -eq ([version]::New())) {
-                    $Error_params = @{
-                        ExceptionName    = 'System.InvalidOperationException'
-                        ExceptionMessage = "Resolve-Module: Get-LatestModuleVersion: Failed to find latest module version for '$moduleName'."
-                        ErrorId          = 'CouldNotFindModule'
-                        CallerPSCmdlet   = $PSCmdlet
-                        ErrorCategory    = 'InvalidOperation'
-                    }
-                    Write-TerminatingError @Error_params
-                }
-                if (!$Local_ModuleVersion -or $Local_ModuleVersion -eq ([version]::New())) {
-                    Write-Verbose -Message "Install $moduleName ..."
-                    Install-PsGalleryModule -Name $moduleName
-                } elseif ($Local_ModuleVersion -lt $Latest_ModuleVerion -and $UpdateModule.IsPresent) {
-                    Write-Verbose -Message "Update $moduleName from version $Local_ModuleVersion to version [$Latest_ModuleVerion] ..." -Verbose
-                    Install-PsGalleryModule -Name $moduleName -Version $Latest_ModuleVerion -UpdateOnly
-                } else {
-                    Write-Verbose -Message "Module $moduleName is already Installed and Up-to-date."
-                }
-                Write-Verbose -Message "Importing module $moduleName ..."
-                try {
-                    Get-ModulePath -Name $moduleName | Import-Module -Verbose:$($PSCmdlet.MyInvocation.BoundParameters['verbose'] -eq $true) -Force:$($PSCmdlet.MyInvocation.BoundParameters['Force'] -eq $true)
-                } catch [System.IO.FileLoadException] {
-                    Write-Warning "$($_.Exception.Message) "
-                }
-            }
+    function Resolve_Module ([string[]]$Names) {
+        if (!$(Get-Variable Resolve_Module_fn -ValueOnly -Scope global -ErrorAction Ignore)) {
+            # Write-Verbose "Fetching the script (One-time only)"; # Fetch it Once only :)
+            Set-Variable -Name Resolve_Module_fn -Scope global -Option ReadOnly -Value ([scriptblock]::Create($((Invoke-RestMethod -Method Get https://api.github.com/gists/7629f35f93ae89a525204bfd9931b366).files.'Resolve-Module.ps1'.content)))
         }
+        . $(Get-Variable Resolve_Module_fn -ValueOnly -Scope global)
+        Resolve-module -Name $Names
     }
     function Write-BuildLog {
         [CmdletBinding()]
@@ -1429,8 +1394,7 @@ Begin {
 Process {
     if ($Help) {
         Write-Heading "Getting help"
-        Write-BuildLog -c '"psake" | Resolve-Module @Mod_Res -Verbose'
-        Resolve-Module -Name 'psake' -Verbose:$false
+        Resolve_Module -Names 'psake' -Verbose:$false
         Get-PSakeScriptTasks -buildFile $Psake_BuildFile.FullName | Sort-Object -Property Name | Format-Table -Property Name, Description, Alias, DependsOn
         exit 0
     }

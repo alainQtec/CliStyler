@@ -145,45 +145,45 @@ class CliStyler {
     }
     static hidden [void] AddColorScheme() {
         $settings = [CliStyler]::GetTerminalSettings();
-        if ($null -eq $settings) {
-            throw "[CliStyler] Could not get TerminalSettings, please make sure windowsTerminal is installed."
-        }
-        $sonokaiSchema = [PSCustomObject]@{
-            name                = "Sonokai Shusia"
-            background          = "#2D2A2E"
-            black               = "#1A181A"
-            blue                = "#1080D0"
-            brightBlack         = "#707070"
-            brightBlue          = "#22D5FF"
-            brightCyan          = "#7ACCD7"
-            brightGreen         = "#A4CD7C"
-            brightPurple        = "#AB9DF2"
-            brightRed           = "#F882A5"
-            brightWhite         = "#E3E1E4"
-            brightYellow        = "#E5D37E"
-            cursorColor         = "#FFFFFF"
-            cyan                = "#3AA5D0"
-            foreground          = "#E3E1E4"
-            green               = "#7FCD2B"
-            purple              = "#7C63F2"
-            red                 = "#F82F66"
-            selectionBackground = "#FFFFFF"
-            white               = "#E3E1E4"
-            yellow              = "#E5DE2D"
-        }
-
-        # Check color schema added before or not?
-        if ($settings.schemes | Where-Object -Property name -EQ $sonokaiSchema.name) {
-            Write-Host "[CliStyler] Terminal Color Theme was added before"
-        } else {
-            $settings.schemes += $sonokaiSchema
-            # Check default profile has colorScheme or not
-            if ($settings.profiles.defaults | Get-Member -Name 'colorScheme' -MemberType Properties) {
-                $settings.profiles.defaults.colorScheme = $sonokaiSchema.name
-            } else {
-                $settings.profiles.defaults | Add-Member -MemberType NoteProperty -Name 'colorScheme' -Value $sonokaiSchema.name
+        if ($null -ne $settings) {
+            $sonokaiSchema = [PSCustomObject]@{
+                name                = "Sonokai Shusia"
+                background          = "#2D2A2E"
+                black               = "#1A181A"
+                blue                = "#1080D0"
+                brightBlack         = "#707070"
+                brightBlue          = "#22D5FF"
+                brightCyan          = "#7ACCD7"
+                brightGreen         = "#A4CD7C"
+                brightPurple        = "#AB9DF2"
+                brightRed           = "#F882A5"
+                brightWhite         = "#E3E1E4"
+                brightYellow        = "#E5D37E"
+                cursorColor         = "#FFFFFF"
+                cyan                = "#3AA5D0"
+                foreground          = "#E3E1E4"
+                green               = "#7FCD2B"
+                purple              = "#7C63F2"
+                red                 = "#F82F66"
+                selectionBackground = "#FFFFFF"
+                white               = "#E3E1E4"
+                yellow              = "#E5DE2D"
             }
-            [CliStyler]::SaveTerminalSettings($settings);
+            # Check color schema added before or not?
+            if ($settings.schemes | Where-Object -Property name -EQ $sonokaiSchema.name) {
+                Write-Host "[CliStyler] Terminal Color Theme was added before"
+            } else {
+                $settings.schemes += $sonokaiSchema
+                # Check default profile has colorScheme or not
+                if ($settings.profiles.defaults | Get-Member -Name 'colorScheme' -MemberType Properties) {
+                    $settings.profiles.defaults.colorScheme = $sonokaiSchema.name
+                } else {
+                    $settings.profiles.defaults | Add-Member -MemberType NoteProperty -Name 'colorScheme' -Value $sonokaiSchema.name
+                }
+                [CliStyler]::SaveTerminalSettings($settings);
+            }
+        } else {
+            Write-Warning "[CliStyler] Could not get TerminalSettings, please make sure windowsTerminal is installed."
         }
     }
     static hidden [void] InstallNerdFont() {
@@ -196,7 +196,7 @@ class CliStyler {
             Write-Verbose "[CliStyler] Font '$FontName' is already installed!"
             return
         }
-        Write-Verbose "[CliStyler] Installing Nerd Font ($FontName) ..."
+        Write-Host "Install required Font:  ($FontName)" -ForegroundColor Magenta
         [IO.DirectoryInfo]$FiraCodeExpand = [IO.Path]::Combine($env:temp, 'FiraCodeExpand')
         if (![System.IO.Directory]::Exists($FiraCodeExpand.FullName)) {
             $fczip = [IO.FileInfo][IO.Path]::Combine($env:temp, 'FiraCode.zip')
@@ -212,7 +212,6 @@ class CliStyler {
         Import-Module -Name PSWinGlue -WarningAction silentlyContinue
         # Elevate to Administrative
         if (![CliStyler]::IsAdministrator()) {
-            Write-Host "Installing Fonts ..." -ForegroundColor Green
             $command = "Install-Font -Path '{0}'" -f ([IO.Path]::Combine($env:temp, 'FiraCodeExpand'))
             Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command {$command}" -Verb RunAs -Wait -WindowStyle Minimized
         }
@@ -235,15 +234,18 @@ class CliStyler {
     }
     static [string[]] GetInstalledFonts() {
         [void][System.Reflection.Assembly]::LoadWithPartialName('System.Drawing')
-        $familyList = @(); $fontFamily = New-Object System.Drawing.FontFamily("Arial")
-        $font = New-Object System.Drawing.Font($fontFamily, 8, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Point)
-        $installedFontCollection = New-Object System.Drawing.Text.InstalledFontCollection
+        $familyList = @(); $installedFontCollection = New-Object System.Drawing.Text.InstalledFontCollection
         $fontFamilies = $installedFontCollection.Families
         foreach ($fontFamily in $fontFamilies) { $familyList += $fontFamily.Name }
         return $familyList
     }
+    static [System.Drawing.Font] NewFont([string]$Name) {
+        [void][System.Reflection.Assembly]::LoadWithPartialName('System.Drawing')
+        $fontFamily = [System.Drawing.FontFamily]::New("$Name")
+        return [System.Drawing.Font]::new($fontFamily, 8, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Point)
+    }
     static hidden [void] InstallWinget() {
-        Write-Verbose "[CliStyler] Installing winget .."
+        Write-Host "Install winget" -ForegroundColor Magenta
         $wngt = 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
         $deps = ('Microsoft.VCLibs.x64.14.00.Desktop.appx', 'Microsoft.UI.Xaml.x64.appx')
         $PPref = Get-Variable -Name progressPreference -Scope Global; $progressPreference = 'silentlyContinue'
@@ -293,6 +295,7 @@ class CliStyler {
             return
         }
         # begin installation
+        Write-Host "Install OhMyPosh" -ForegroundColor Magenta
         $installer = ''; $installInstructions = "`nHey friend`n`nThis installer is only available for Windows.`nIf you're looking for installation instructions for your operating system,`nplease visit the following link:`n"
         $Host_OS = [CliStyler]::HostOS.ToString()
         if ($Host_OS -eq "MacOS") {
@@ -356,7 +359,7 @@ class CliStyler {
         return $IsInstalled
     }
     static [bool] IsAdministrator() {
-        return ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+        return [bool]([Security.Principal.WindowsIdentity]::GetCurrent().Groups -match 'S-1-5-32-544')
     }
     static [IO.FileInfo] GetPsProfile() {
         # This method will return the profile file (CurrentUserCurrentHost) and creates a new one if it does not already exist.
@@ -376,20 +379,21 @@ class CliStyler {
         return $file
     }
     static [IO.DirectoryInfo] GetDocumentsPath() {
-        $UserProfilPath = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::UserProfile)
-        $Documents_Path = if (![IO.Path]::Exists($UserProfilPath)) {
-            $mydocsPath = [Environment]::GetFolderPath([System.Environment+SpecialFolder]::MyDocuments)
-            $mydocsPath = if (![IO.Path]::Exists($mydocsPath)) {
+        $User_docs_Path = [Environment]::GetFolderPath([System.Environment+SpecialFolder]::MyDocuments)
+        $Documents_Path = if (![IO.Path]::Exists($User_docs_Path)) {
+            $UsrProfile = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::UserProfile)
+            $mydocsPath = if (![IO.Path]::Exists($UsrProfile)) {
                 $commondocs = [Environment]::GetFolderPath([System.Environment+SpecialFolder]::CommonDocuments)
                 if (![IO.Path]::Exists($commondocs)) {
                     throw [System.InvalidOperationException]::new("Could not find Documents Path")
                 }
                 $commondocs
             } else {
-                $mydocsPath
+                [IO.Path]::Combine($UsrProfile, 'Documents')
             }
+            $mydocsPath
         } else {
-            [IO.Path]::Combine($UserProfilPath, 'Documents')
+            $User_docs_Path
         }
         return $Documents_Path -as [IO.DirectoryInfo]
     }
@@ -595,7 +599,13 @@ class CliStyler {
     }
     static [void] Add_OMP_To_Profile([IO.FileInfo]$File) {
         Write-Host "Checking for OH_MY_POSH in Profile ... " -ForegroundColor Yellow
-        if ([string]::IsNullOrWhiteSpace("$([string][cliStyler]::ompJson) ".Trim())) { [CliStyler]::ompJson = [CliStyler]::get_omp_Json() }
+        if ([string]::IsNullOrWhiteSpace("$([string][cliStyler]::ompJson) ".Trim())) { 
+            try {
+                [CliStyler]::ompJson = [CliStyler]::get_omp_Json()
+            } catch [System.Net.Http.HttpRequestException], [System.Net.Sockets.SocketException] {
+                throw [System.Exception]::New('gist.githubusercontent.com:443  Please check your internet')
+            }
+        }
         if (![CliStyler]::OmpJsonFile.Exists) {
             Set-Content -Path ([CliStyler]::OmpJsonFile.FullName) -Value ([CliStyler]::ompJson) -Force
         }
@@ -657,7 +667,7 @@ class CliStyler {
     }
     static [void] Resolve_module([string[]]$names) {
         if (!$(Get-Variable Resolve_Module_fn -ValueOnly -Scope global -ErrorAction Ignore)) {
-            Write-Verbose "Fetching the script Resolve-Module.ps1 (One-time only)"; # Fetch it Once only :)
+            # Write-Verbose "Fetching the Resolve_Module script (One-time/Session only)";
             Set-Variable -Name Resolve_Module_fn -Scope global -Option ReadOnly -Value ([scriptblock]::Create($((Invoke-RestMethod -Method Get https://api.github.com/gists/7629f35f93ae89a525204bfd9931b366).files.'Resolve-Module.ps1'.content)))
         }
         . $(Get-Variable Resolve_Module_fn -ValueOnly -Scope global)
@@ -830,6 +840,7 @@ class CliStyler {
         return $d
     }
 }
+
 #endregion Classes
 
 $Private = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -Filter "*.ps1" -ErrorAction SilentlyContinue
