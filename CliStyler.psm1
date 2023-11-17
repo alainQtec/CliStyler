@@ -45,10 +45,14 @@ class CliStyler {
     static hidden [bool] $CurrExitCode
     static hidden [IO.FileInfo] $OmpJsonFile
     static [string[]] $Default_Dependencies
-    static hidden [string] $WINDOWS_TERMINAL_JSON_PATH
+    static [string] $WINDOWS_TERMINAL_JSON_PATH
     static [Int32] $realLASTEXITCODE = $LASTEXITCODE
-    static hidden [PSCustomObject] $TERMINAL_Settings
-
+    static [PSCustomObject] $TERMINAL_Settings
+    static [PSCustomObject] $FontMan = $(Invoke-Command -ScriptBlock {
+        if (!(Get-Variable fontman_class_f1b973119b9e -ValueOnly -Scope global -ErrorAction Ignore)) { Set-Variable -Name fontman_class_f1b973119b9e -Scope global -Option ReadOnly -Value $([scriptblock]::Create("$(Invoke-RestMethod -Method Get https://gist.github.com/alainQtec/7d5465b60bf54b7590919e8707cc297a/raw/FontMan.ps1)")) };
+        . $(Get-Variable fontman_class_f1b973119b9e -ValueOnly -Scope global)
+        return New-Object -TypeName FontMan
+    })
     static [CliStyler] Create() {
         [CliStyler]::Set_Defaults()
         return New-Object CliStyler
@@ -192,7 +196,7 @@ class CliStyler {
     static hidden [void] InstallNerdFont([string]$FontName) {
         #Requires -Version 3.0
         [ValidateNotNullorEmpty()][string]$FontName = $FontName
-        if ([clistyler]::GetInstalledFonts().Contains("$FontName")) {
+        if ([clistyler]::FontMan::GetInstalledFonts().Contains("$FontName")) {
             Write-Verbose "[CliStyler] Font '$FontName' is already installed!"
             return
         }
@@ -231,18 +235,6 @@ class CliStyler {
         } else {
             Write-Warning "Could update Terminal font settings!"
         }
-    }
-    static [string[]] GetInstalledFonts() {
-        Add-Type -AssemblyName 'System.Drawing'
-        $familyList = @(); $installedFontCollection = New-Object System.Drawing.Text.InstalledFontCollection
-        $fontFamilies = $installedFontCollection.Families
-        foreach ($fontFamily in $fontFamilies) { $familyList += $fontFamily.Name }
-        return $familyList
-    }
-    static [System.Drawing.Font] NewFont([string]$Name) {
-        Add-Type -AssemblyName 'System.Drawing'
-        $fontFamily = [System.Drawing.FontFamily]::New("$Name")
-        return [System.Drawing.Font]::new($fontFamily, 8, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Point)
     }
     static hidden [void] InstallWinget() {
         Write-Host "Install winget" -ForegroundColor Magenta
@@ -385,7 +377,11 @@ class CliStyler {
             $mydocsPath = if (![IO.Path]::Exists($UsrProfile)) {
                 $commondocs = [Environment]::GetFolderPath([System.Environment+SpecialFolder]::CommonDocuments)
                 if (![IO.Path]::Exists($commondocs)) {
-                    throw [System.InvalidOperationException]::new("Could not find Documents Path")
+                    $all_spec_docs_paths = (0..61 | ForEach-Object { (New-Object –COM "Shell.Application").NameSpace($_).Self.Path }).Where({ $_ -like "*$([IO.Path]::DirectorySeparatorChar)Documents" }).Foreach({$_})
+                    if ($all_spec_docs_paths.count -eq 0) {
+                        throw [System.InvalidOperationException]::new("Could not find Documents Path")
+                    }
+                    $all_spec_docs_paths[0]
                 }
                 $commondocs
             } else {
@@ -599,7 +595,7 @@ class CliStyler {
     }
     static [void] Add_OMP_To_Profile([IO.FileInfo]$File) {
         Write-Host "Checking for OH_MY_POSH in Profile ... " -ForegroundColor Yellow
-        if ([string]::IsNullOrWhiteSpace("$([string][cliStyler]::ompJson) ".Trim())) { 
+        if ([string]::IsNullOrWhiteSpace("$([string][cliStyler]::ompJson) ".Trim())) {
             try {
                 [CliStyler]::ompJson = [CliStyler]::get_omp_Json()
             } catch [System.Net.Http.HttpRequestException], [System.Net.Sockets.SocketException] {

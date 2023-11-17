@@ -1,4 +1,5 @@
 # [**CliStyler**](https://CliStyler.com) ( /!\ ver α /!\ )
+
  Module for configuring and customizing their command-line environments
 
 [![CI](https://github.com/alainQtec/CliStyler/actions/workflows/CI.yaml/badge.svg)](https://github.com/alainQtec/CliStyler/actions/workflows/CI.yaml)
@@ -44,34 +45,30 @@ This project is licensed under the [MIT License](https://alainQtec.MIT-license.o
 
 ## Todos
 
-[x] Add oh-my-posh installer method to the main class
+- [x] Add oh-my-posh installer method to the main class
 
-[] Add NerdFonts installer method
+- [ ] Add NerdFonts installer method
 
-[] Add custom prompt to $profile
+- [ ] Add custom prompt to $profile
 
- <!-- **cli tools to add later in version 1+**
+- [ ] Add [pe](https://github.com/sdras/project-explorer) ie: project-explorer
 
- Give your command-line environment a personal touch with CliStyler. Craft, control, and customize your CLI experience like never before.
+- [ ] Add [tb](https://github.com/klaudiosinani/taskbook) ie: taskbook
 
-- [pe](https://github.com/sdras/project-explorer)
+- [ ] Add [tr](https://transfer.sh/)
 
-- [tb](https://github.com/klaudiosinani/taskbook)
+- [ ] Add [ts](https://terminalsplash.com/)
 
-- [tr](https://transfer.sh/)
+- [ ] Add [nv](https://github.com/denisidoro/navi)
 
-- [ts](https://terminalsplash.com/)
+- [ ] Add [bf](https://github.com/niieani/bash-oo-framework)
 
-- [nv](https://github.com/denisidoro/navi)
+- [ ] Add [cl](https://github.com/replit/clui)
 
-- [bf](https://github.com/niieani/bash-oo-framework)
+- [ ] Add [ht](https://github.com/htop-dev/htop/releases)
 
-- [cl](https://github.com/replit/clui)
+- [ ] Add [tz](https://www.terminalizer.com/)
 
-- [ht](https://github.com/htop-dev/htop/releases)
+- [ ] Add [dd](https://thedevdash.com/)
 
-- [tz](https://www.terminalizer.com/)
-
-- [dd](https://thedevdash.com/)
-
-- [th](https://tenhands.app/) -->
+- [ ] Add [th](https://tenhands.app/)
